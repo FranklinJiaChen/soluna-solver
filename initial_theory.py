@@ -1,5 +1,5 @@
 """
-This script solves how many ways are there to partition 12 into at most 4 parts.
+One-off script solves how many ways are there to partition 12 into at most 4 parts.
 This is equivalent to solving the initial positions of Soluna in theory.
 """
 
