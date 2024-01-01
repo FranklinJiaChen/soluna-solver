@@ -1,4 +1,6 @@
-from typing import Tuple
+from typing import List
+from copy import deepcopy
+from itertools import combinations
 
 class Soluna:
     """
@@ -44,9 +46,10 @@ class Soluna:
         ...
     ValueError: Invalid board: Board's stacks must be positive integers.
     """
-    GameState = Tuple[Tuple[int, ...], ...]
+    GameState = List[List[int]]
     NUM_SYMBOLS = 4
     NUM_TILES = 12
+    minimax_counter = 0
 
     def __init__(self, board: GameState) -> None:
         """
@@ -86,7 +89,7 @@ class Soluna:
         if not all(isinstance(stack, int) and stack >= 1 for symbol in board for stack in symbol):
             raise ValueError("Invalid board: Board's stacks must be positive integers.")
 
-    def display_board(self):
+    def display_board(self) -> None:
         """
         Display the current state of the Soluna board.
         Each stacks is seperated by spaces and consists of a number and letter.
@@ -98,9 +101,9 @@ class Soluna:
             if symbol:
                 print(" ".join(f"{stack}{label}" for stack in symbol))
 
-    def normalize_position(self):
+    def normalize_position(self) -> None:
         """
-        Transform the board represented by a 2d array into a normalized equivalent 2d array.
+        Transform self.board represented by a 2d array into a normalized equivalent 2d array.
         1. Each symbols stack sizes are given in a nonincreasing order.
         2. The number of stacks the symbols have must be in a nonincreasing order.
         3. Two symbols with the same amount of stacks must be in reverse lexicographical ordering
@@ -110,15 +113,139 @@ class Soluna:
 
         self.board = sorted(self.board, key=lambda symbol: (len(symbol), symbol), reverse=True)
 
+    def get_moves(self) -> List[GameState]:
+        """
+        Get all possible moves from a given state.
+        """
+        possible_moves = []
+        board_copy = deepcopy(self.board)
+
+        # combining stacks of same symbol
+        for index, symbol in enumerate(self.board):
+            distinct = set(combinations(symbol, 2))
+            for (stack1, stack2) in distinct:
+                self.board[index].remove(stack1)
+                self.board[index].remove(stack2)
+                self.board[index].append(stack1+stack2)
+                self.normalize_position()
+                possible_moves.append(self.board)
+                self.board = deepcopy(board_copy)
+
+        # combining stacks of different symbol
+        combinations_2 = list(combinations(range(Soluna.NUM_SYMBOLS), 2))
+        for (symbol1, symbol2) in combinations_2:
+            matching_numbers = set(self.board[symbol1]) & set(self.board[symbol2])
+            for num in matching_numbers:
+                self.board[symbol1].remove(num)
+                self.board[symbol2].remove(num)
+                self.board[symbol1].append(num*2)
+                self.normalize_position()
+                possible_moves.append(self.board)
+                self.board = deepcopy(board_copy)
+
+                self.board[symbol1].remove(num)
+                self.board[symbol2].remove(num)
+                self.board[symbol2].append(num*2)
+                self.normalize_position()
+                possible_moves.append(self.board)
+                self.board = deepcopy(board_copy)
+
+        unique_moves = []
+
+        for move in possible_moves:
+            if move not in unique_moves:
+                unique_moves.append(move)
+
+        return unique_moves
+
+    def minimax(self) -> int:
+        """
+        Implement the minimax algorithm to find the optimal move.
+        Player 1 is the maximizing player. (starts the game and want final position to have odd number of stacks.)
+        Player 2 is the minimizing player. (goes second and want final position to have even number of stacks).
+
+        Returns:
+        - The minimax value for the current state of the board.
+        """
+        Soluna.minimax_counter += 1
+
+        is_player1_turn  = 1 - sum(len(symbol) for symbol in self.board if symbol) % 2
+        possible_moves = self.get_moves()
+        # Base cases
+        if len(possible_moves) == 0:
+            return -2*is_player1_turn+1
+
+        board_copy = deepcopy(self.board)
+        if is_player1_turn:
+            max_eval = float('-inf')
+            for move in possible_moves:
+                self.board = move
+                eval = self.minimax()
+                self.board = deepcopy(board_copy)
+                max_eval = max(max_eval, eval)
+            return max_eval
+        else:
+            min_eval = float('inf')
+            for move in possible_moves:
+                self.board = move
+                eval = self.minimax()
+                self.board = deepcopy(board_copy)
+                min_eval = min(min_eval, eval)
+            return min_eval
+
+    def find_best_move(self) -> int:
+        """
+        Find the best move using the minimax algorithm.
+        In case of multiple equally optimal moves, the tiebreaker is [insert weird rules]
+
+        Returns:
+        - The index of the best move on the board. (-1 if no possible moves)
+        """
+        Soluna.minimax_counter = 0
+        is_player1_turn  = 1 - sum(len(symbol) for symbol in self.board if symbol) % 2
+
+        best_val = float('-inf') if is_player1_turn else float('inf')
+        best_move = -1
+
+        possible_moves = self.get_moves()
+        board_copy = deepcopy(self.board)
+        if is_player1_turn:
+            for move in possible_moves:
+                self.board = deepcopy(move)
+                move_val = self.minimax()
+                self.board = deepcopy(board_copy)
+
+                if move_val > best_val:
+                    best_val = move_val
+                    best_move = move
+        else:
+            for move in possible_moves:
+                self.board = deepcopy(move)
+                move_val = self.minimax()
+                self.board = deepcopy(board_copy)
+
+                if move_val < best_val:
+                    best_val = move_val
+                    best_move = move
+        if best_move == -1:
+            return best_move, -2*is_player1_turn+1
+        return best_move, best_val
+
+
+
 example_board = [
-    [2,],
-    [1, 1, 3],
-    [1, 1, 2, 1],
-    []
+    [1, 1, 1, 1],
+    [1, 1, 1],
+    [1, 1, 1],
+    [1, 1]
 ]
 
 soluna_game = Soluna(example_board)
 soluna_game.display_board()
+soluna_game.get_moves()
+soluna_game.minimax()
+print(soluna_game.find_best_move())
+print(soluna_game.minimax_counter)
 
 import doctest
 doctest.testmod()
