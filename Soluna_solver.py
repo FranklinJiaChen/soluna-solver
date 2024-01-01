@@ -158,7 +158,7 @@ class Soluna:
 
         return unique_moves
 
-    def minimax(self) -> int:
+    def minimax(self, alpha: float = float('-inf'), beta: float = float('inf')) -> int:
         """
         Implement the minimax algorithm to find the optimal move.
         Player 1 is the maximizing player. (starts the game and want final position to have odd number of stacks.)
@@ -166,6 +166,8 @@ class Soluna:
 
         Returns:
         - The minimax value for the current state of the board.
+        - alpha: The current best score that the maximizing player is assured of.
+        - beta: The current best score that the minimizing player is assured of.
         """
         Soluna.minimax_counter += 1
 
@@ -180,17 +182,23 @@ class Soluna:
             max_eval = float('-inf')
             for move in possible_moves:
                 self.board = move
-                eval = self.minimax()
+                eval = self.minimax(alpha, beta)
                 self.board = deepcopy(board_copy)
                 max_eval = max(max_eval, eval)
+                alpha = max(alpha, eval)
+                if beta <= alpha:
+                    break
             return max_eval
         else:
             min_eval = float('inf')
             for move in possible_moves:
                 self.board = move
-                eval = self.minimax()
+                eval = self.minimax(alpha, beta)
                 self.board = deepcopy(board_copy)
                 min_eval = min(min_eval, eval)
+                beta = min(beta, eval)
+                if beta <= alpha:
+                    break  # Alpha-beta pruning
             return min_eval
 
     def find_best_move(self) -> int:
@@ -231,8 +239,6 @@ class Soluna:
             return best_move, -2*is_player1_turn+1
         return best_move, best_val
 
-
-
 example_board = [
     [1, 1, 1, 1],
     [1, 1, 1],
@@ -240,12 +246,40 @@ example_board = [
     [1, 1]
 ]
 
-soluna_game = Soluna(example_board)
-soluna_game.display_board()
-soluna_game.get_moves()
-soluna_game.minimax()
-print(soluna_game.find_best_move())
-print(soluna_game.minimax_counter)
+# soluna_game = Soluna(example_board)
+# soluna_game.display_board()
+# soluna_game.get_moves()
+# soluna_game.minimax()
+# print(soluna_game.find_best_move())
+# print(soluna_game.minimax_counter)
+
+STARTING_CONFIGURATIONS = [[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+[[1, 1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1]],
+[[1, 1, 1, 1], [1, 1, 1, 1], [1, 1], [1, 1]],
+[[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1], [1,]],
+[[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], []],
+[[1, 1, 1, 1, 1], [1, 1, 1], [1, 1], [1, 1]],
+[[1, 1, 1, 1, 1], [1, 1, 1], [1, 1, 1], [1,]],
+[[1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], [1,]],
+[[1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1], []],
+[[1, 1, 1, 1, 1], [1, 1, 1, 1, 1], [1,], [1,]],
+[[1, 1, 1, 1, 1], [1, 1, 1, 1, 1], [1, 1], []],
+[[1, 1, 1, 1, 1, 1], [1, 1], [1, 1], [1, 1]],
+[[1, 1, 1, 1, 1, 1], [1, 1, 1], [1, 1], [1,]],
+[[1, 1, 1, 1, 1, 1], [1, 1, 1], [1, 1, 1], []],
+[[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1,], [1,]],
+[[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], []]]
+
+
+total_counter = 0
+for board in STARTING_CONFIGURATIONS:
+    soluna_game = Soluna(board)
+    soluna_game.display_board()
+    soluna_game.minimax()
+    print(soluna_game.find_best_move())
+    print(soluna_game.minimax_counter)
+    total_counter += soluna_game.minimax_counter
+print(total_counter)
 
 import doctest
 doctest.testmod()

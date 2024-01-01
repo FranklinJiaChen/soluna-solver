@@ -38,4 +38,4 @@ id,contracted,A,B,C,D,count,probability,1st player win?
 constraint A >= B >= C >= D,,,,,,4096,1,0.173828125
 count is how much it occurs when you play every tile combination,,,,,,,,
 probability is the chance that intial configuration appears in a game,,,,,,,,
-1st player win is a boolean indicating whether the first player wins. Taken From JBra on BoardGameGeeks (https://videogamegeek.com/blogpost/116793/solving-soluna). To be checked by my program.,,,,,,,,
+1st player win is a boolean indicating whether the first player wins.,,,,,,,,
