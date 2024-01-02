@@ -253,6 +253,24 @@ example_board = [
 # print(soluna_game.find_best_move())
 # print(soluna_game.minimax_counter)
 
+def list_to_tuple(input_list):
+    """
+    Recursively convert a nested list to a nested tuple.
+    """
+    if isinstance(input_list, list):
+        return tuple(list_to_tuple(item) for item in input_list)
+    else:
+        return input_list
+
+def tuple_to_list(input_tuple):
+    """
+    Recursively convert a nested tuple to a nested list.
+    """
+    if isinstance(input_tuple, tuple):
+        return [tuple_to_list(item) for item in input_tuple]
+    else:
+        return input_tuple
+
 STARTING_CONFIGURATIONS = [[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
 [[1, 1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1]],
 [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1], [1, 1]],
@@ -268,19 +286,40 @@ STARTING_CONFIGURATIONS = [[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
 [[1, 1, 1, 1, 1, 1], [1, 1, 1], [1, 1], [1,]],
 [[1, 1, 1, 1, 1, 1], [1, 1, 1], [1, 1, 1], []],
 [[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1,], [1,]],
-[[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], []]]
+[[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], []],
+]
+
+move = 1
+possible_positions_by_move = []
+possible_positions_by_move.append(set(list_to_tuple(config) for config in STARTING_CONFIGURATIONS))
+for positions_by_move in possible_positions_by_move:
+    new_possible_positions = set()
+    for position in positions_by_move:
+        soluna_game = Soluna(tuple_to_list(position))
+        new_possible_positions.update(list_to_tuple(soluna_game.get_moves()))
+    if len(new_possible_positions) != 0:
+        possible_positions_by_move.append(new_possible_positions)
+    print(new_possible_positions)
+    print(len(new_possible_positions))
+    print(f"after move: {move}")
+    move += 1
+    print()
+
+print([len(position_set) for position_set in possible_positions_by_move])
+print(sum([len(position_set) for position_set in possible_positions_by_move]))
 
 
-total_counter = 0
-for board in STARTING_CONFIGURATIONS:
-    soluna_game = Soluna(board)
-    soluna_game.display_board()
-    soluna_game.minimax()
-    print(soluna_game.find_best_move())
-    print(soluna_game.minimax_counter)
-    total_counter += soluna_game.minimax_counter
-print(total_counter)
+# total_counter = 0
+# for board in STARTING_CONFIGURATIONS:
+#     soluna_game = Soluna(board)
+#     soluna_game.display_board()
+#     print(soluna_game.get_moves())
+#     # soluna_game.minimax()
+#     # print(soluna_game.find_best_move())
+#     print(soluna_game.minimax_counter)
+#     total_counter += soluna_game.minimax_counter
+#     print()
+# print(total_counter)
 
 import doctest
 doctest.testmod()
-
