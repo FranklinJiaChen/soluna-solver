@@ -50,6 +50,7 @@ class Soluna:
     NUM_SYMBOLS = 4
     NUM_TILES = 12
     minimax_counter = 0
+    memoization_dict = {}
 
     def __init__(self, board: GameState) -> None:
         """
@@ -160,9 +161,9 @@ class Soluna:
 
     def minimax(self, alpha: float = float('-inf'), beta: float = float('inf')) -> int:
         """
-        Implement the minimax algorithm to find the optimal move.
-        Player 1 is the maximizing player. (starts the game and want final position to have odd number of stacks.)
-        Player 2 is the minimizing player. (goes second and want final position to have even number of stacks).
+        Implement the minimax algorithm with memoization to find the optimal move.
+        Player 1 is the maximizing player (starts the game and wants the final position to have an odd number of stacks).
+        Player 2 is the minimizing player (goes second and wants the final position to have an even number of stacks).
 
         Returns:
         - The minimax value for the current state of the board.
@@ -173,6 +174,11 @@ class Soluna:
 
         is_player1_turn  = 1 - sum(len(symbol) for symbol in self.board if symbol) % 2
         possible_moves = self.get_moves()
+
+        board_key = list_to_tuple(self.board)
+        if board_key in Soluna.memoization_dict:
+            return Soluna.memoization_dict[board_key]
+
         # Base cases
         if len(possible_moves) == 0:
             return -2*is_player1_turn+1
@@ -188,6 +194,8 @@ class Soluna:
                 alpha = max(alpha, eval)
                 if beta <= alpha:
                     break
+            board_key = list_to_tuple(self.board)
+            self.memoization_dict[board_key] = max_eval
             return max_eval
         else:
             min_eval = float('inf')
@@ -199,7 +207,9 @@ class Soluna:
                 beta = min(beta, eval)
                 if beta <= alpha:
                     break  # Alpha-beta pruning
+            self.memoization_dict[board_key] = min_eval
             return min_eval
+
 
     def find_best_move(self) -> int:
         """
@@ -286,40 +296,40 @@ STARTING_CONFIGURATIONS = [[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
 [[1, 1, 1, 1, 1, 1], [1, 1, 1], [1, 1], [1,]],
 [[1, 1, 1, 1, 1, 1], [1, 1, 1], [1, 1, 1], []],
 [[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1,], [1,]],
-[[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], []],
+[[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], []]
 ]
 
-move = 1
-possible_positions_by_move = []
-possible_positions_by_move.append(set(list_to_tuple(config) for config in STARTING_CONFIGURATIONS))
-for positions_by_move in possible_positions_by_move:
-    new_possible_positions = set()
-    for position in positions_by_move:
-        soluna_game = Soluna(tuple_to_list(position))
-        new_possible_positions.update(list_to_tuple(soluna_game.get_moves()))
-    if len(new_possible_positions) != 0:
-        possible_positions_by_move.append(new_possible_positions)
-    print(new_possible_positions)
-    print(len(new_possible_positions))
-    print(f"after move: {move}")
-    move += 1
-    print()
-
-print([len(position_set) for position_set in possible_positions_by_move])
-print(sum([len(position_set) for position_set in possible_positions_by_move]))
-
-
-# total_counter = 0
-# for board in STARTING_CONFIGURATIONS:
-#     soluna_game = Soluna(board)
-#     soluna_game.display_board()
-#     print(soluna_game.get_moves())
-#     # soluna_game.minimax()
-#     # print(soluna_game.find_best_move())
-#     print(soluna_game.minimax_counter)
-#     total_counter += soluna_game.minimax_counter
+# move = 1
+# possible_positions_by_move = []
+# possible_positions_by_move.append(set(list_to_tuple(config) for config in STARTING_CONFIGURATIONS))
+# for positions_by_move in possible_positions_by_move:
+#     new_possible_positions = set()
+#     for position in positions_by_move:
+#         soluna_game = Soluna(tuple_to_list(position))
+#         new_possible_positions.update(list_to_tuple(soluna_game.get_moves()))
+#     if len(new_possible_positions) != 0:
+#         possible_positions_by_move.append(new_possible_positions)
+#     print(new_possible_positions)
+#     print(len(new_possible_positions))
+#     print(f"after move: {move}")
+#     move += 1
 #     print()
-# print(total_counter)
+
+# print([len(position_set) for position_set in possible_positions_by_move])
+# print(sum([len(position_set) for position_set in possible_positions_by_move]))
+
+
+total_counter = 0
+for board in STARTING_CONFIGURATIONS:
+    soluna_game = Soluna(board)
+    soluna_game.display_board()
+    print(soluna_game.find_best_move())
+    print(soluna_game.minimax_counter)
+    total_counter += soluna_game.minimax_counter
+    print()
+print(total_counter)
+
+print(len(Soluna.memoization_dict))
 
 import doctest
 doctest.testmod()
