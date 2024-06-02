@@ -1,0 +1,1 @@
+Matches with JBra's finding on BoardGameGeeks (https://videogamegeek.com/blogpost/116793/solving-soluna).

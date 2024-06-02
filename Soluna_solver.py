@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict, List, Tuple
 from copy import deepcopy
 from itertools import combinations
 from openpyxl import Workbook
@@ -6,6 +6,14 @@ from openpyxl import Workbook
 class Soluna:
     """
     A class representing the Soluna game.
+
+    GameState:
+    A 2D array where the rows denote the symbols and the columns denote the size of the stacks of that symbol.
+    i.e. [[4, 1], [2, 2], [2, 1], []]. Represents the following board state:
+    A 4 stack and 1 stack of symbol A
+    two 2 stacks of symbol B
+    a 2 stack and 1 stack of symbol C
+    and no stack with symbol D
 
     Attributes:
     - board (GameState): The current state of the Soluna board.
@@ -17,14 +25,6 @@ class Soluna:
 
     Raises:
     - ValueError: If the provided board is invalid.
-
-    GameState:
-    A 2D array where the rows denote the symbols and the columns denote the size of the stacks of that symbol.
-    i.e. [[4, 1], [2, 2], [2, 1], []]. Represents the following board state:
-    A 4 stack and 1 stack of symbol A
-    two 2 stacks of symbol B
-    a 2 stack and 1 stack of symbol C
-    and no stack with symbol D
 
     Examples:
     >>> correct_board = Soluna([[5,], [1, 2], [2, 2], []])
@@ -47,6 +47,7 @@ class Soluna:
         ...
     ValueError: Invalid board: Board's stacks must be positive integers.
     """
+    GameStateTuple = Tuple[Tuple[int]]
     GameState = List[List[int]]
     NUM_SYMBOLS = 4
     NUM_TILES = 12
@@ -68,7 +69,8 @@ class Soluna:
         [[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], []]
     ]
     minimax_counter = 0
-    memoization_dict_by_move: {GameState: (int, GameState)} = [{} for _ in range(12)]
+    memoization_dict_by_move: "Dict[GameStateTuple: (int, GameState)]" = [{} for _ in range(12)]
+
 
     @classmethod
     def update_memoization_dict(cls, move_moved: int, board_key: GameState, value: int) -> None:
@@ -139,6 +141,7 @@ class Soluna:
         1. Each symbols stack sizes are given in a nonincreasing order.
         2. The number of stacks the symbols have must be in a nonincreasing order.
         3. Two symbols with the same amount of stacks must be in reverse lexicographical ordering
+        ex. ((1, 1, 1), (3, 1), (2, 2), (1,))
         """
         for i in range(Soluna.NUM_SYMBOLS):
             self.board[i] = sorted(self.board[i], reverse=True)
@@ -190,18 +193,14 @@ class Soluna:
 
         return unique_moves
 
-    def minimax(self, alpha: float = float('-inf'), beta: float = float('inf')) -> int:
+    def minimax(self) -> int:
         """
         Implement the minimax algorithm with memoization to find the optimal move.
         Player 1 is the maximizing player (starts the game and wants the final position to have an odd number of stacks).
         Player 2 is the minimizing player (goes second and wants the final position to have an even number of stacks).
 
-        Alpha-beta pruning is not being used in favor for the more powerful memoization optimization.
-
         Returns:
         - The minimax value for the current state of the board.
-        - alpha: The current best score that the maximizing player is assured of.
-        - beta: The current best score that the minimizing player is assured of.
         """
         Soluna.minimax_counter += 1
 
@@ -209,13 +208,13 @@ class Soluna:
         is_player1_turn  = 1 - move_moved % 2
         possible_moves = self.get_moves()
 
-        board_key = list_to_tuple(self.board)
+        board_key: Soluna.GameStateTuple = list_to_tuple(self.board)
         if board_key in Soluna.memoization_dict_by_move[move_moved]:
             return Soluna.memoization_dict_by_move[move_moved][board_key][0]
 
         # Base cases
         if len(possible_moves) == 0:
-            self.update_memoization_dict(move_moved, board_key, (-2 * is_player1_turn + 1, None))
+            self.update_memoization_dict(move_moved, board_key, -2 * is_player1_turn + 1)
             return -2*is_player1_turn+1
 
         board_copy = deepcopy(self.board)
@@ -223,13 +222,9 @@ class Soluna:
             max_eval = float('-inf')
             for move in possible_moves:
                 self.board = move
-                eval = self.minimax(alpha, beta)
+                eval = self.minimax()
                 self.board = deepcopy(board_copy)
                 max_eval = max(max_eval, eval)
-                # alpha = max(alpha, eval)
-                # if beta <= alpha:
-                #     print(f"beta: {beta}, alpha: {alpha} so breaking for player 1")
-                #     break
             board_key = list_to_tuple(self.board)
             self.update_memoization_dict(move_moved, board_key, (max_eval, None))
             return max_eval
@@ -237,54 +232,11 @@ class Soluna:
             min_eval = float('inf')
             for move in possible_moves:
                 self.board = move
-                eval = self.minimax(alpha, beta)
+                eval = self.minimax()
                 self.board = deepcopy(board_copy)
                 min_eval = min(min_eval, eval)
-                # beta = min(beta, eval)
-                # if beta <= alpha:
-                #     print(f"beta: {beta}, alpha: {alpha} so breaking for player 2")
-                #     break  # Alpha-beta pruning
             self.update_memoization_dict(move_moved, board_key, (min_eval, None))
             return min_eval
-
-
-    def find_best_move(self) -> None:
-        """
-        Find the best move using the memoization.
-        Update values of best move and value based on outcome + one depth search
-        """
-        move_moved = Soluna.NUM_TILES-sum(len(symbol) for symbol in self.board if symbol)
-        is_player1_turn  = 1 - move_moved % 2
-
-        board_key = list_to_tuple(self.board)
-        possible_moves = self.get_moves()
-
-        if is_player1_turn:
-            if len(possible_moves) > 0:
-                best_eval = float("-inf")
-                unwinnable_continuation = 0
-                for move in possible_moves:
-                    move_key = list_to_tuple(move)
-                    if self.memoization_dict_by_move[move_moved+1][move_key][0] < 0:
-                        unwinnable_continuation += 1
-                    new_eval = self.memoization_dict_by_move[move_moved+1][move_key][0]
-                    if new_eval > best_eval:
-                        best_eval = new_eval
-                        best_move = move
-                self.update_memoization_dict(move_moved, board_key, (self.memoization_dict_by_move[move_moved][board_key][0]-(unwinnable_continuation/len(possible_moves)), list_to_tuple(best_move)))
-        else:
-            if len(possible_moves) > 0:
-                best_eval = float("inf")
-                unwinnable_continuation = 0
-                for move in possible_moves:
-                    move_key = list_to_tuple(move)
-                    if self.memoization_dict_by_move[move_moved+1][move_key][0] > 0:
-                        unwinnable_continuation += 1
-                    new_eval = self.memoization_dict_by_move[move_moved+1][move_key][0]
-                    if new_eval < best_eval:
-                        best_eval = new_eval
-                        best_move = move
-                self.update_memoization_dict(move_moved, board_key, (self.memoization_dict_by_move[move_moved][board_key][0]+(unwinnable_continuation/len(possible_moves)), list_to_tuple(best_move)))
 
     def solve_game() -> None:
         """
@@ -296,14 +248,6 @@ class Soluna:
             soluna_game.display_board()
             soluna_game.minimax()
             print()
-
-    def find_all_best_move() -> None:
-        """
-        """
-        for dict in reversed(Soluna.memoization_dict_by_move):
-            for position in dict:
-                soluna_game = Soluna(tuple_to_list(position))
-                soluna_game.find_best_move()
 
     def get_all_positions() -> List[List[GameState]]:
         """
@@ -321,52 +265,6 @@ class Soluna:
                 possible_positions_by_move.append(new_possible_positions)
         return possible_positions_by_move
 
-    def get_all_single_optimal_positions() -> List[List[GameState]]:
-        """
-        Use breadth-first search to find all possible game states by move.
-        """
-        first_player_optimal_positions = []
-        first_player_optimal_positions.append(set(list_to_tuple(config) for config in Soluna.STARTING_CONFIGURATIONS))
-
-        move_made = 0
-        for positions_by_move in first_player_optimal_positions:
-            print(positions_by_move)
-            new_possible_positions = set()
-            for position in positions_by_move:
-                if move_made % 2:
-                    if Soluna.memoization_dict_by_move[move_made][position][1]:
-                        new_possible_positions.add(Soluna.memoization_dict_by_move[move_made][position][1])
-                else:
-                    soluna_game = Soluna(tuple_to_list(position))
-                    moves = soluna_game.get_moves()
-                    new_possible_positions.update(list_to_tuple(moves))
-            if len(new_possible_positions) != 0:
-                first_player_optimal_positions.append(new_possible_positions)
-            move_made += 1
-            print("move made increase: " + str(move_made))
-
-        second_player_optimal_positions = []
-        second_player_optimal_positions.append(set(list_to_tuple(config) for config in Soluna.STARTING_CONFIGURATIONS))
-
-        move_made = 0
-        for positions_by_move in second_player_optimal_positions:
-            new_possible_positions = set()
-            for position in positions_by_move:
-                if move_made % 2:
-                    soluna_game = Soluna(tuple_to_list(position))
-                    new_possible_positions.update(list_to_tuple(soluna_game.get_moves()))
-                else:
-                    if Soluna.memoization_dict_by_move[move_made][position][1]:
-                        new_possible_positions.add(list_to_tuple(Soluna.memoization_dict_by_move[move_made][position][1]))
-            if new_possible_positions != None and len(new_possible_positions) != 0:
-                second_player_optimal_positions.append(new_possible_positions)
-            move_made += 1
-
-        result = [set1.union(set2) for set1, set2 in zip(first_player_optimal_positions, second_player_optimal_positions)]
-        total_length = sum(len(s) for s in result)
-        print(f"Total length of all sets: {total_length}")
-        return result
-
     def make_sheet(file_name: str) -> None:
         """
         Make a sheet
@@ -378,18 +276,15 @@ class Soluna:
 
             sheet.cell(row=1, column=1, value='Nested Tuple')
             sheet.cell(row=1, column=2, value='Value')
-            sheet.cell(row=1, column=3, value='Best Move')
 
-            for row, (nested_tuple, info) in enumerate(memo_dict.items(), start=2):
-                sheet.cell(row=row, column=1, value=str(nested_tuple))
-                sheet.cell(row=row, column=2, value=info[0])
-                sheet.cell(row=row, column=3, value=str(info[1]))
+            for row, (gameState, value) in enumerate(memo_dict.items(), start=2):
+                sheet.cell(row=row, column=1, value=str(gameState))
+                sheet.cell(row=row, column=2, value=value)
 
             sheet.column_dimensions['A'].width = 30
 
         workbook.remove(workbook['Sheet'])
         workbook.save(f'{file_name}.xlsx')
-
 
 
 def list_to_tuple(input_list):
@@ -419,11 +314,7 @@ def tuple_to_list(input_tuple):
 
 
 Soluna.solve_game()
-Soluna.find_all_best_move()
-Soluna.make_sheet("wow")
-opt_pos = Soluna.get_all_single_optimal_positions()
-print(opt_pos)
-print(len(opt_pos))
+Soluna.make_sheet("wow!")
 
 import doctest
 doctest.testmod()

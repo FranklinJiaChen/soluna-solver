@@ -1,5 +1,5 @@
 """
-One-off script calculate the distribution that the inital Soluna tiles will land on.
+One-off script calculate the probability distribution that the inital Soluna tiles will land on.
 """
 
 
