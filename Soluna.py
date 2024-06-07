@@ -1,8 +1,12 @@
-from typing import Dict, List, Tuple
-from utils import nlist_to_ntup, ntup_to_nlist
 from copy import deepcopy
 from itertools import combinations
+from typing import Dict, List, Tuple, Literal
+
 from openpyxl import Workbook
+
+from utils import nlist_to_ntup, ntup_to_nlist
+
+IntBool = Literal[0, 1]
 
 class Soluna:
     """
@@ -48,11 +52,11 @@ class Soluna:
         ...
     ValueError: Invalid board: Board's stacks must be positive integers.
     """
-    GameStateTuple = Tuple[Tuple[int]]
+    GameStateTuple = Tuple[Tuple[int, ...]]
     GameState = List[List[int]]
     NUM_SYMBOLS = 4
     NUM_TILES = 12
-    STARTING_CONFIGURATIONS = [[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    STARTING_CONFIGURATIONS: List[GameState] = [[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
         [[1, 1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1]],
         [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1], [1, 1]],
         [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1], [1,]],
@@ -70,7 +74,7 @@ class Soluna:
         [[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], []]
     ]
     minimax_counter = 0
-    memoization_dict_by_move: "Dict[GameStateTuple: (int, GameState)]" = [{} for _ in range(12)]
+    memoization_dict_by_move: List[Dict[GameStateTuple, Tuple[int, GameState]]] = [{} for _ in range(12)]
 
 
     @classmethod
@@ -153,8 +157,8 @@ class Soluna:
         """
         Get all possible moves from a given state.
         """
-        possible_moves = []
-        board_copy = deepcopy(self.board)
+        possible_moves: List[Soluna.GameState] = []
+        board_copy: Soluna.GameState = deepcopy(self.board)
 
         # combining stacks of same symbol
         for index, symbol in enumerate(self.board):
@@ -204,7 +208,7 @@ class Soluna:
         Soluna.minimax_counter += 1
 
         move_moved: int = Soluna.NUM_TILES-sum(len(symbol) for symbol in self.board if symbol)
-        is_player1_turn: bool  = 1 - move_moved % 2
+        is_player1_turn: IntBool  = 1 - move_moved % 2
         possible_moves: List[Soluna.GameState] = self.get_moves()
 
         board_key: Soluna.GameStateTuple = nlist_to_ntup(self.board)
@@ -248,21 +252,6 @@ class Soluna:
             soluna_game.minimax()
             print()
 
-    def get_all_positions() -> List[List[GameState]]:
-        """
-        Use breadth-first search to find all possible game states by move.
-        """
-        possible_positions_by_move = []
-        possible_positions_by_move.append(set(nlist_to_ntup(config) for config in Soluna.STARTING_CONFIGURATIONS))
-
-        for positions_by_move in possible_positions_by_move:
-            new_possible_positions = set()
-            for position in positions_by_move:
-                soluna_game = Soluna(ntup_to_nlist(position))
-                new_possible_positions.update(nlist_to_ntup(soluna_game.get_moves()))
-            if len(new_possible_positions) != 0:
-                possible_positions_by_move.append(new_possible_positions)
-        return possible_positions_by_move
 
     def make_sheet(file_name: str) -> None:
         """
