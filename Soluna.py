@@ -7,6 +7,29 @@ from openpyxl import Workbook
 from utils import nlist_to_ntup, ntup_to_nlist
 
 IntBool = Literal[0, 1]
+GameStateTuple = Tuple[Tuple[int, ...]]
+GameState = List[List[int]]
+NUM_SYMBOLS = 4
+NUM_TILES = 12
+STARTING_CONFIGURATIONS: List[GameState] = [[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    [[1, 1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1]],
+    [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1], [1, 1]],
+    [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1], [1,]],
+    [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], []],
+    [[1, 1, 1, 1, 1], [1, 1, 1], [1, 1], [1, 1]],
+    [[1, 1, 1, 1, 1], [1, 1, 1], [1, 1, 1], [1,]],
+    [[1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], [1,]],
+    [[1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1], []],
+    [[1, 1, 1, 1, 1], [1, 1, 1, 1, 1], [1,], [1,]],
+    [[1, 1, 1, 1, 1], [1, 1, 1, 1, 1], [1, 1], []],
+    [[1, 1, 1, 1, 1, 1], [1, 1], [1, 1], [1, 1]],
+    [[1, 1, 1, 1, 1, 1], [1, 1, 1], [1, 1], [1,]],
+    [[1, 1, 1, 1, 1, 1], [1, 1, 1], [1, 1, 1], []],
+    [[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1,], [1,]],
+    [[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], []]
+]
+
+MEMOIZATION: Dict[GameStateTuple, int] = {}
 
 class Soluna:
     """
@@ -52,44 +75,6 @@ class Soluna:
         ...
     ValueError: Invalid board: Board's stacks must be positive integers.
     """
-    GameStateTuple = Tuple[Tuple[int, ...]]
-    GameState = List[List[int]]
-    NUM_SYMBOLS = 4
-    NUM_TILES = 12
-    STARTING_CONFIGURATIONS: List[GameState] = [[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
-        [[1, 1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1]],
-        [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1], [1, 1]],
-        [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1], [1,]],
-        [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], []],
-        [[1, 1, 1, 1, 1], [1, 1, 1], [1, 1], [1, 1]],
-        [[1, 1, 1, 1, 1], [1, 1, 1], [1, 1, 1], [1,]],
-        [[1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], [1,]],
-        [[1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1], []],
-        [[1, 1, 1, 1, 1], [1, 1, 1, 1, 1], [1,], [1,]],
-        [[1, 1, 1, 1, 1], [1, 1, 1, 1, 1], [1, 1], []],
-        [[1, 1, 1, 1, 1, 1], [1, 1], [1, 1], [1, 1]],
-        [[1, 1, 1, 1, 1, 1], [1, 1, 1], [1, 1], [1,]],
-        [[1, 1, 1, 1, 1, 1], [1, 1, 1], [1, 1, 1], []],
-        [[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1,], [1,]],
-        [[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], []]
-    ]
-    minimax_counter = 0
-    memoization_dict_by_move: List[Dict[GameStateTuple, Tuple[int, GameState]]] = [{} for _ in range(12)]
-
-
-    @classmethod
-    def update_memoization_dict(cls, move_moved: int, board_key: GameState, value: int) -> None:
-        """
-        Updates the memoization dictionary for a specific move and board key.
-
-        Parameters:
-        - move_moved: The move number.
-        - board_key: The key representing the current board state.
-        - value: The value associated with the board state.
-
-        """
-        cls.memoization_dict_by_move[move_moved][board_key] = value
-
     def __init__(self, board: GameState) -> None:
         """
         Initialize a Soluna game.
@@ -119,11 +104,11 @@ class Soluna:
         2. Verifying that the board has correct amount of tiles.
         3. Confirming that each stack has positive height.
         """
-        if len(board) != Soluna.NUM_SYMBOLS:
-            raise ValueError(f"Invalid board: Board does not have exactly {Soluna.NUM_SYMBOLS} symbols.")
+        if len(board) != NUM_SYMBOLS:
+            raise ValueError(f"Invalid board: Board does not have exactly {NUM_SYMBOLS} symbols.")
 
-        if sum(sum(symbol) for symbol in board if symbol) != Soluna.NUM_TILES:
-            raise ValueError(f"Invalid board: Board does not have exactly {Soluna.NUM_TILES} tiles.")
+        if sum(sum(symbol) for symbol in board if symbol) != NUM_TILES:
+            raise ValueError(f"Invalid board: Board does not have exactly {NUM_TILES} tiles.")
 
         if not all(isinstance(stack, int) and stack >= 1 for symbol in board for stack in symbol):
             raise ValueError("Invalid board: Board's stacks must be positive integers.")
@@ -148,7 +133,7 @@ class Soluna:
         3. Two symbols with the same amount of stacks must be in reverse lexicographical ordering
         ex. ((1, 1, 1), (3, 1), (2, 2), (1,))
         """
-        for i in range(Soluna.NUM_SYMBOLS):
+        for i in range(NUM_SYMBOLS):
             self.board[i] = sorted(self.board[i], reverse=True)
 
         self.board = sorted(self.board, key=lambda symbol: (len(symbol), symbol), reverse=True)
@@ -157,8 +142,8 @@ class Soluna:
         """
         Get all possible moves from a given state.
         """
-        possible_moves: List[Soluna.GameState] = []
-        board_copy: Soluna.GameState = deepcopy(self.board)
+        possible_moves: List[GameState] = []
+        board_copy: GameState = deepcopy(self.board)
 
         # combining stacks of same symbol
         for index, symbol in enumerate(self.board):
@@ -172,7 +157,7 @@ class Soluna:
                 self.board = deepcopy(board_copy)
 
         # combining stacks of different symbol
-        combinations_2 = list(combinations(range(Soluna.NUM_SYMBOLS), 2))
+        combinations_2 = list(combinations(range(NUM_SYMBOLS), 2))
         for (symbol1, symbol2) in combinations_2:
             matching_numbers = set(self.board[symbol1]) & set(self.board[symbol2])
             for num in matching_numbers:
@@ -196,83 +181,140 @@ class Soluna:
                 unique_moves.append(move)
         return unique_moves
 
-    def minimax(self) -> int:
-        """
-        Implement the minimax algorithm with memoization to find the optimal move.
-        Player 1 is the maximizing player (starts the game and wants the final position to have an odd number of stacks).
-        Player 2 is the minimizing player (goes second and wants the final position to have an even number of stacks).
+def get_total_stacks(board: GameState) -> int:
+    """
+    Get the number of stacks in a board
 
-        Returns:
-        - The minimax value for the current state of the board.
-        """
-        Soluna.minimax_counter += 1
+    Parameters:
+    - board: The game state
 
-        move_moved: int = Soluna.NUM_TILES-sum(len(symbol) for symbol in self.board if symbol)
-        is_player1_turn: IntBool  = 1 - move_moved % 2
-        possible_moves: List[Soluna.GameState] = self.get_moves()
+    Returns:
+    - The total number of stacks in the board
+    """
+    return sum(len(symbol) for symbol in board)
 
-        board_key: Soluna.GameStateTuple = nlist_to_ntup(self.board)
-        if board_key in Soluna.memoization_dict_by_move[move_moved]:
-            return Soluna.memoization_dict_by_move[move_moved][board_key]
+def get_move_num(board: GameState) -> int:
+    """
+    Get the number of moves in a board
 
-        # Base cases
-        if len(possible_moves) == 0:
-            self.update_memoization_dict(move_moved, board_key, -2 * is_player1_turn + 1)
-            return -2*is_player1_turn+1
+    Parameters:
+    - board: The game state
 
-        board_copy = deepcopy(self.board)
-        if is_player1_turn:
-            max_eval = float('-inf')
-            for move in possible_moves:
-                self.board = move
-                eval = self.minimax()
-                self.board = deepcopy(board_copy)
-                max_eval = max(max_eval, eval)
-            board_key = nlist_to_ntup(self.board)
-            self.update_memoization_dict(move_moved, board_key, max_eval)
-            return max_eval
-        else:
-            min_eval = float('inf')
-            for move in possible_moves:
-                self.board = move
-                eval = self.minimax()
-                self.board = deepcopy(board_copy)
-                min_eval = min(min_eval, eval)
-            self.update_memoization_dict(move_moved, board_key, min_eval)
-            return min_eval
+    Returns:
+    - The number of moves this current board state will make.
+      (i.e. starting states start will return 1)
+    """
+    return NUM_TILES-get_total_stacks(board) + 1
 
-    def solve_game() -> None:
-        """
-        Update the memoization dictionary to hold the winner under optimal play for every position.
-        """
-        for board in Soluna.STARTING_CONFIGURATIONS:
-            board_copy = deepcopy(board)
-            soluna_game = Soluna(board_copy)
-            soluna_game.display_board()
-            soluna_game.minimax()
-            print()
+def is_player1_turn(board: GameState) -> IntBool:
+    """
+    Determine if it is player 1's turn
+
+    Parameters:
+    - board: The game state
+
+    Returns:
+    - 1 if it is player 1's turn, 0 otherwise
+    """
+    return get_move_num(board) % 2
+
+def get_wanted_score(board: GameState) -> int:
+    """
+    Get the wanted score of the game by the current player
+
+    Parameters:
+    - board: The game state
+
+    Returns:
+    1 if it is player 1's turn, -1 otherwise
+    """
+    return 2 * is_player1_turn(board) - 1
+
+def get_all_positions() -> List[GameState]:
+    """
+    Use breadth-first search to find all possible game states by move.
+    """
+    possible_positions_by_move: list[set[GameStateTuple]] = []
+    # move 1 possible positions
+    possible_positions_by_move.append(set(nlist_to_ntup(config) for config in STARTING_CONFIGURATIONS))
+
+    # move 2-12 possible positions
+    for positions_by_move in possible_positions_by_move:
+        new_possible_positions = set()
+        for position in positions_by_move:
+            soluna_game = Soluna(ntup_to_nlist(position))
+            new_possible_positions.update(nlist_to_ntup(soluna_game.get_moves()))
+        if len(new_possible_positions) != 0:
+            possible_positions_by_move.append(new_possible_positions)
+
+    # convert list of set into flattened list in reverse move order
+    return [ntup_to_nlist(position) for positions in possible_positions_by_move for position in positions][::-1]
+
+def solve(board: GameState) -> int:
+    """
+    Solve a position using memoization.
+    """
+    soluna_game = Soluna(deepcopy(board))
+    board_key = nlist_to_ntup(soluna_game.board)
 
 
-    def make_sheet(file_name: str) -> None:
-        """
-        Make a sheet
-        """
-        workbook = Workbook()
-        sheet = workbook.active
-        sheet.title = "Moves"
+    if board_key in MEMOIZATION:
+        return MEMOIZATION[board_key]
 
-        sheet.cell(row=1, column=1, value='Move')
-        sheet.cell(row=1, column=2, value='Nested Tuple')
-        sheet.cell(row=1, column=3, value='Value')
+    possible_moves = soluna_game.get_moves()
+    wanted_score = get_wanted_score(board)
 
-        next_row = 2
-        for move, memo_dict in enumerate(Soluna.memoization_dict_by_move):
-            for gameState, value in memo_dict.items():
-                sheet.cell(row=next_row, column=1, value=move + 1)
-                sheet.cell(row=next_row, column=2, value=str(gameState))
-                sheet.cell(row=next_row, column=3, value=value)
-                next_row += 1
+    if wanted_score in [solve(move) for move in possible_moves]:
+        MEMOIZATION[board_key] = wanted_score
+        return wanted_score
 
-        sheet.column_dimensions['B'].width = 30
+    MEMOIZATION[board_key] = -wanted_score
+    return -wanted_score
 
-        workbook.save(f'{file_name}.xlsx')
+
+def solve_game() -> None:
+    """
+    Solve the game using memoization
+
+    Where
+    first player victory = 1
+    second player victory = -1
+    """
+    all_positions = get_all_positions()
+
+    for position in all_positions:
+        solve(position)
+
+
+def make_sheet(file_name: str) -> None:
+    """
+    Make a sheet
+    """
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Moves"
+
+    sheet.cell(row=1, column=1, value='Move')
+    sheet.cell(row=1, column=2, value='Nested Tuple')
+    sheet.cell(row=1, column=3, value='Value')
+
+    next_row = 2
+    for board, value in MEMOIZATION.items():
+        sheet.cell(row=next_row, column=1, value=get_move_num(ntup_to_nlist(board)))
+        sheet.cell(row=next_row, column=2, value=str(board))
+        sheet.cell(row=next_row, column=3, value=value)
+        next_row += 1
+
+    sheet.column_dimensions['B'].width = 30
+
+    workbook.save(f'{file_name}.xlsx')
+
+def main() -> None:
+    """
+    Main function
+    """
+    solve_game()
+    make_sheet("memoization")
+
+if __name__ == '__main__':
+    main()

@@ -1,5 +1,5 @@
 import unittest
-from Soluna import Soluna
+from Soluna import *
 from io import StringIO
 import sys
 
@@ -94,6 +94,37 @@ class TestGetMoves(unittest.TestCase):
 
         self.assertCountEqual(Soluna(board).get_moves(), expected_moves)
 
+
+class TestGetTotalStackNum(unittest.TestCase):
+    def test_get_total_stacks(self):
+        board = [[3, 2, 1], [2, 1], [3], []]
+        self.assertEqual(get_total_stacks(board), 6)
+
+
+class TestGetMoveNum(unittest.TestCase):
+    def test_get_move_num(self):
+        board = [[3, 2, 1], [2, 1], [3], []]
+        self.assertEqual(get_move_num(board), 7)
+
+
+class TestIsPlayer1Turn(unittest.TestCase):
+    def test_is_player1_true(self):
+        board = [[3, 2, 1], [2, 1], [3], []]
+        self.assertEqual(is_player1_turn(board), 1)
+
+    def test_is_player1_false(self):
+        board = [[6, 2, 1], [2, 1], [], []]
+        self.assertEqual(is_player1_turn(board), 0)
+
+
+class TestGetWantedScore(unittest.TestCase):
+    def test_get_wanted_score_p1(self):
+        board = [[3, 2, 1], [2, 1], [3], []]
+        self.assertEqual(get_wanted_score(board), 1)
+
+    def test_get_wanted_score_p2(self):
+        board = [[6, 2, 1], [2, 1], [], []]
+        self.assertEqual(get_wanted_score(board), -1)
 
 
 if __name__ == '__main__':
