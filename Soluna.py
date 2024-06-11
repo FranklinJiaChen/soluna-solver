@@ -7,8 +7,20 @@ from openpyxl import Workbook
 from utils import nlist_to_ntup, ntup_to_nlist
 
 IntBool = Literal[0, 1]
-GameStateTuple = Tuple[Tuple[int, ...]]
+"""
+GameState:
+A 2D array where the rows denote the symbols and the columns denote the size of the stacks of that symbol.
+i.e. [[4, 1], [2, 2], [2, 1], []]. Represents the following board state:
+A 4 stack and 1 stack of symbol A
+two 2 stacks of symbol B
+a 2 stack and 1 stack of symbol C
+and no stack with symbol D
+
+Game State Tuple is needed for dictionary key memoization.
+Uses nlist_to_ntup and ntup_to_nlist to convert between the two types.
+"""
 GameState = List[List[int]]
+GameStateTuple = Tuple[Tuple[int, ...]]
 NUM_SYMBOLS = 4
 NUM_TILES = 12
 STARTING_CONFIGURATIONS: List[GameState] = [[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
@@ -31,25 +43,69 @@ STARTING_CONFIGURATIONS: List[GameState] = [[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1
 
 MEMOIZATION: Dict[GameStateTuple, int] = {}
 
+def get_total_stacks(board: GameState) -> int:
+    """
+    Get the number of stacks in a board
+
+    Parameters:
+    - board: The game state
+
+    Returns:
+    - The total number of stacks in the board
+    """
+    return sum(len(symbol) for symbol in board)
+
+def get_move_num(board: GameState) -> int:
+    """
+    Get the number of moves in a board
+
+    Parameters:
+    - board: The game state
+
+    Returns:
+    - The number of moves this current board state will make.
+      (i.e. starting states start will return 1)
+    """
+    return NUM_TILES-get_total_stacks(board) + 1
+
+def is_player1_turn(board: GameState) -> IntBool:
+    """
+    Determine if it is player 1's turn
+
+    Parameters:
+    - board: The game state
+
+    Returns:
+    - 1 if it is player 1's turn, 0 otherwise
+    """
+    return get_move_num(board) % 2
+
+def get_wanted_score(board: GameState) -> int:
+    """
+    Get the wanted score of the game by the current player
+
+    Parameters:
+    - board: The game state
+
+    Returns:
+    1 if it is player 1's turn, -1 otherwise
+    """
+    return 2 * is_player1_turn(board) - 1
+
 class Soluna:
     """
     A class representing the Soluna game.
-
-    GameState:
-    A 2D array where the rows denote the symbols and the columns denote the size of the stacks of that symbol.
-    i.e. [[4, 1], [2, 2], [2, 1], []]. Represents the following board state:
-    A 4 stack and 1 stack of symbol A
-    two 2 stacks of symbol B
-    a 2 stack and 1 stack of symbol C
-    and no stack with symbol D
 
     Attributes:
     - board (GameState): The current state of the Soluna board.
 
     Methods:
     - __init__(self, board: GameState): Initializes a Soluna game.
+        Also validates the provided board and normalizes the position.
     - validate_board(self, board: GameState): Validates the provided board.
+    - normalize_position(self): Normalizes the position of the board.
     - display_board(self): Displays the current state of the Soluna board.
+    - get_moves(self) -> List[GameState]: Get all possible moves from a given state.
 
     Raises:
     - ValueError: If the provided board is invalid.
@@ -181,55 +237,6 @@ class Soluna:
                 unique_moves.append(move)
         return unique_moves
 
-def get_total_stacks(board: GameState) -> int:
-    """
-    Get the number of stacks in a board
-
-    Parameters:
-    - board: The game state
-
-    Returns:
-    - The total number of stacks in the board
-    """
-    return sum(len(symbol) for symbol in board)
-
-def get_move_num(board: GameState) -> int:
-    """
-    Get the number of moves in a board
-
-    Parameters:
-    - board: The game state
-
-    Returns:
-    - The number of moves this current board state will make.
-      (i.e. starting states start will return 1)
-    """
-    return NUM_TILES-get_total_stacks(board) + 1
-
-def is_player1_turn(board: GameState) -> IntBool:
-    """
-    Determine if it is player 1's turn
-
-    Parameters:
-    - board: The game state
-
-    Returns:
-    - 1 if it is player 1's turn, 0 otherwise
-    """
-    return get_move_num(board) % 2
-
-def get_wanted_score(board: GameState) -> int:
-    """
-    Get the wanted score of the game by the current player
-
-    Parameters:
-    - board: The game state
-
-    Returns:
-    1 if it is player 1's turn, -1 otherwise
-    """
-    return 2 * is_player1_turn(board) - 1
-
 def get_all_positions() -> List[GameState]:
     """
     Use breadth-first search to find all possible game states by move.
@@ -254,9 +261,9 @@ def solve(board: GameState) -> int:
     """
     Solve a position using memoization.
     """
+    # deepcopy is needed to avoid modifying the original board. I'm not sure what is changing the board
     soluna_game = Soluna(deepcopy(board))
     board_key = nlist_to_ntup(soluna_game.board)
-
 
     if board_key in MEMOIZATION:
         return MEMOIZATION[board_key]
