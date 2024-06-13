@@ -142,7 +142,7 @@ class Soluna:
         - ValueError: If the provided board is invalid.
         """
         self.validate_board(board)
-        self.board = board
+        self.board = deepcopy(board)
         self.normalize_position()
 
     def validate_board(self, board: GameState) -> None:
@@ -261,8 +261,7 @@ def solve(board: GameState) -> int:
     """
     Solve a position using memoization.
     """
-    # deepcopy is needed to avoid modifying the original board. I'm not sure what is changing the board
-    soluna_game = Soluna(deepcopy(board))
+    soluna_game = Soluna(board)
     board_key = nlist_to_ntup(soluna_game.board)
 
     if board_key in MEMOIZATION:
@@ -271,7 +270,24 @@ def solve(board: GameState) -> int:
     possible_moves = soluna_game.get_moves()
     wanted_score = get_wanted_score(board)
 
-    if wanted_score in [solve(move) for move in possible_moves]:
+    # if len(possible_moves) == 0:
+    #     MEMOIZATION[board_key] = -2*wanted_score
+    #     print(board,"No moves left")
+    #     return MEMOIZATION[board_key]
+
+    possibilities = [solve(move) for move in possible_moves]
+    # if set(possibilities) == {2} or set(possibilities) == {-2}:
+    #     print("Guranteed outcome", board)
+    #     MEMOIZATION[board_key] = possibilities[0]
+    #     return possibilities[0]
+
+    # get probability of player 1 winning by taking the percentage of positive in prossiilities
+    # player1_wins = sum(1 for possibility in possibilities if possibility > 0)
+    # probability_player1_wins = player1_wins/len(possibilities)
+    # print(board, probability_player1_wins, possibilities)
+
+
+    if wanted_score in possibilities:
         MEMOIZATION[board_key] = wanted_score
         return wanted_score
 

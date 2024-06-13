@@ -1,5 +1,5 @@
 import unittest
-from Soluna import *
+from soluna import *
 from io import StringIO
 import sys
 
@@ -93,6 +93,7 @@ class TestGetMoves(unittest.TestCase):
         ]
 
         self.assertCountEqual(Soluna(board).get_moves(), expected_moves)
+        self.assertEqual(board, [[3, 2, 1], [2, 1], [2], [1]])
 
 
 class TestGetTotalStackNum(unittest.TestCase):
