@@ -42,9 +42,10 @@ STARTING_CONFIGURATIONS: List[GameState] = [[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1
 
 # Soluna Database Table Columns
 ID = 0
-STATE = 1
-EVAL = 2
-IS_DETERMINED = 3
+MOVE_NUM = 1
+STATE = 2
+EVAL = 3
+IS_DETERMINED = 4
 
 config = {
     'user': 'root',
@@ -358,6 +359,21 @@ def update_is_determined() -> None:
         update_board_is_determined(position)
 
 
+def update_move_num() -> None:
+    """
+    Update the move_num column in the database.
+
+    Where
+    starting positions have move_num = 1
+    """
+    all_positions = get_all_positions()
+
+    for position in all_positions:
+        print(f"Updating move_num, position {all_positions.index(position)+1}/{len(all_positions)}")
+        cursor.execute(f'UPDATE soluna SET move_num = {get_move_num(position)} WHERE state = "{position}"')
+        conn.commit()
+
+
 def main() -> None:
     """
     Main function
@@ -369,7 +385,9 @@ def main() -> None:
     except mysql.connector.Error as e:
         print(f"Error connecting to MySQL: {e}")
         return
+    solve_game()
     update_is_determined()
+    update_move_num()
     if 'conn' in locals() and conn.is_connected():
         cursor.close()
         conn.close()
