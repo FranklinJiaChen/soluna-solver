@@ -5,6 +5,7 @@ from typing import Dict, List, Tuple, Literal
 from openpyxl import Workbook
 
 from utils import nlist_to_ntup, ntup_to_nlist
+import mysql.connector
 
 IntBool = Literal[0, 1]
 """
@@ -16,7 +17,7 @@ two 2 stacks of symbol B
 a 2 stack and 1 stack of symbol C
 and no stack with symbol D
 
-Game State Tuple is needed for dictionary key memoization.
+immutatable type Game State Tuple is needed for sets
 Uses nlist_to_ntup and ntup_to_nlist to convert between the two types.
 """
 GameState = List[List[int]]
@@ -41,7 +42,20 @@ STARTING_CONFIGURATIONS: List[GameState] = [[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1
     [[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], []]
 ]
 
-MEMOIZATION: Dict[GameStateTuple, int] = {}
+# MEMOIZATION: Dict[GameStateTuple, int] = {}
+# Soluna Database Table Columns
+ID = 0
+STATE = 1
+EVAL = 2
+IS_DETERMINED = 3
+
+config = {
+    'user': 'root',
+    'host': 'localhost',
+    'database': 'soluna',
+}
+conn = None
+cursor = None
 
 def get_total_stacks(board: GameState) -> int:
     """
@@ -255,17 +269,19 @@ def get_all_positions() -> List[GameState]:
             possible_positions_by_move.append(new_possible_positions)
 
     # convert list of set into flattened list in reverse move order
-    return [ntup_to_nlist(position) for positions in possible_positions_by_move for position in positions][::-1]
+    return [ntup_to_nlist(position) for positions in possible_positions_by_move for position in positions]
 
 def solve(board: GameState) -> int:
     """
     Solve a position using memoization.
     """
     soluna_game = Soluna(board)
-    board_key = nlist_to_ntup(soluna_game.board)
 
-    if board_key in MEMOIZATION:
-        return MEMOIZATION[board_key]
+    cursor.execute(f'SELECT * FROM soluna WHERE state = "{soluna_game.board}"')
+    board_data = cursor.fetchone()
+
+    if board_data:
+        return board_data[EVAL]
 
     possible_moves = soluna_game.get_moves()
     wanted_score = get_wanted_score(board)
@@ -288,10 +304,12 @@ def solve(board: GameState) -> int:
 
 
     if wanted_score in possibilities:
-        MEMOIZATION[board_key] = wanted_score
+        cursor.execute(f'INSERT INTO soluna (state, eval) VALUES ("{soluna_game.board}", {wanted_score})')
+        conn.commit()
         return wanted_score
 
-    MEMOIZATION[board_key] = -wanted_score
+    cursor.execute(f'INSERT INTO soluna (state, eval) VALUES ("{soluna_game.board}", {-wanted_score})')
+    conn.commit()
     return -wanted_score
 
 
@@ -305,39 +323,51 @@ def solve_game() -> None:
     """
     all_positions = get_all_positions()
 
-    for position in all_positions:
+    for position in all_positions[::-1]:
+        print(f"Position {len(all_positions)-all_positions.index(position)}/{len(all_positions)}")
         solve(position)
 
 
-def make_sheet(file_name: str) -> None:
-    """
-    Make a sheet
-    """
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "Moves"
+# def make_sheet(file_name: str) -> None:
+#     """
+#     Make a sheet
+#     """
+#     workbook = Workbook()
+#     sheet = workbook.active
+#     sheet.title = "Moves"
 
-    sheet.cell(row=1, column=1, value='Move')
-    sheet.cell(row=1, column=2, value='Nested Tuple')
-    sheet.cell(row=1, column=3, value='Value')
+#     sheet.cell(row=1, column=1, value='Move')
+#     sheet.cell(row=1, column=2, value='Nested Tuple')
+#     sheet.cell(row=1, column=3, value='Value')
 
-    next_row = 2
-    for board, value in MEMOIZATION.items():
-        sheet.cell(row=next_row, column=1, value=get_move_num(ntup_to_nlist(board)))
-        sheet.cell(row=next_row, column=2, value=str(board))
-        sheet.cell(row=next_row, column=3, value=value)
-        next_row += 1
+#     next_row = 2
+#     for board, value in MEMOIZATION.items():
+#         sheet.cell(row=next_row, column=1, value=get_move_num(ntup_to_nlist(board)))
+#         sheet.cell(row=next_row, column=2, value=str(board))
+#         sheet.cell(row=next_row, column=3, value=value)
+#         next_row += 1
 
-    sheet.column_dimensions['B'].width = 30
+#     sheet.column_dimensions['B'].width = 30
 
-    workbook.save(f'{file_name}.xlsx')
+#     workbook.save(f'{file_name}.xlsx')
 
 def main() -> None:
     """
     Main function
     """
+    global conn, cursor
+    try:
+        conn = mysql.connector.connect(**config)
+        cursor = conn.cursor()
+    except mysql.connector.Error as e:
+        print(f"Error connecting to MySQL: {e}")
+        return
     solve_game()
-    make_sheet("memoization")
+    # make_sheet("memoization")
+    if 'conn' in locals() and conn.is_connected():
+        cursor.close()
+        conn.close()
+        print('MySQL connection closed')
 
 if __name__ == '__main__':
     main()
