@@ -1,4 +1,5 @@
 -- note id can be set as not the key as state may be the primary key
+-- reverse the id column as the database will be created in reverse oder due to memoization
 SET @max_id = (SELECT MAX(id) FROM soluna);
 SET @row_number = 0;
 

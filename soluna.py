@@ -40,12 +40,6 @@ STARTING_CONFIGURATIONS: List[GameState] = [[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1
     [[1, 1, 1, 1, 1, 1], [1, 1, 1, 1], [1, 1], []]
 ]
 
-# Soluna Database Table Columns
-ID = 0
-MOVE_NUM = 1
-STATE = 2
-EVAL = 3
-IS_DETERMINED = 4
 
 config = {
     'user': 'root',
@@ -277,11 +271,11 @@ def evaluate_board(board: GameState) -> int:
     """
     soluna_game = Soluna(board)
 
-    cursor.execute(f'SELECT * FROM soluna WHERE state = "{soluna_game.board}"')
+    cursor.execute(f'SELECT eval FROM soluna WHERE state = "{soluna_game.board}"')
     board_data = cursor.fetchone()
 
     if board_data:
-        return board_data[EVAL]
+        return board_data[0]
 
     possible_moves = soluna_game.get_moves()
     wanted_score = get_wanted_score(board)
@@ -300,32 +294,34 @@ def update_board_is_determined(board: GameState) -> None:
     """
     Update the is_determined column in the database
 
+    also updates move_explanation column to "any" if is_determined is 1
+
     preconditions:
     - board is a valid game state
     - every possible move from the board has been evaluated and stored in the database
     - every move after this board is_dermined has been updated
     """
     soluna_game = Soluna(board)
-    cursor.execute(f'SELECT * FROM soluna WHERE state = "{soluna_game.board}"')
+    cursor.execute(f'SELECT eval FROM soluna WHERE state = "{soluna_game.board}"')
     board_data = cursor.fetchone()
 
     if board_data:
         all_determined = True
-        determined_result = board_data[EVAL]
+        determined_result = board_data[0]
         possible_moves = soluna_game.get_moves()
 
         for move in possible_moves:
-            cursor.execute(f'SELECT * FROM soluna WHERE state = "{move}"')
+            cursor.execute(f'SELECT eval, is_determined FROM soluna WHERE state = "{move}"')
             move_data = cursor.fetchone()
-            if move_data[IS_DETERMINED] == 0:
+            if move_data[1] == 0:
                 all_determined = False
                 break
-            if move_data[EVAL] != determined_result:
+            if move_data[0] != determined_result:
                 all_determined = False
                 break
 
         if all_determined:
-            cursor.execute(f'UPDATE soluna SET is_determined = 1 WHERE state = "{soluna_game.board}"')
+            cursor.execute(f'UPDATE soluna SET is_determined = 1, move_explanation = "any" WHERE state = "{soluna_game.board}"')
             conn.commit()
 
 
@@ -358,6 +354,21 @@ def update_is_determined() -> None:
         print(f"Updating is_determined, position {len(all_positions)-all_positions.index(position)}/{len(all_positions)}")
         update_board_is_determined(position)
 
+
+def update_possible_move_count() -> None:
+    """
+    Update the possible_move_count column in the database.
+
+    Where
+    possible_move_count = the number of possible moves from the board
+    """
+    all_positions = get_all_positions()
+
+    for position in all_positions:
+        print(f"Updating possible_move_count, position {all_positions.index(position)+1}/{len(all_positions)}")
+        soluna_game = Soluna(position)
+        cursor.execute(f'UPDATE soluna SET possible_move_count = {len(soluna_game.get_moves())} WHERE state = "{position}"')
+        conn.commit()
 
 def update_move_num() -> None:
     """
@@ -445,6 +456,42 @@ def get_all_p2opt_p2win_positions() -> List[GameState]:
     return [ntup_to_nlist(position) for positions in possible_positions_by_move for position in positions]
 
 
+def update_best_move() -> None:
+    """
+    Update the best_move and move_explanation column in the database.
+
+    (currently only if there is only one winning move)
+
+    Where
+    best_move = the board state of the best move
+    move_explanation = the explanation of the best move
+                    "none" if there is no moves
+                    "forced" if there is only one move
+                    "only winning move" if there is only one winning move
+    """
+    all_positions = get_all_positions()
+
+    for position in all_positions:
+        print(f"Updating best_move, position {all_positions.index(position)+1}/{len(all_positions)}")
+        soluna_game = Soluna(position)
+        possible_moves = soluna_game.get_moves()
+        if len(possible_moves) == 0:
+            cursor.execute(f'UPDATE soluna SET move_explanation = "none" WHERE state = "{soluna_game.board}"')
+            conn.commit()
+            continue
+        if len(possible_moves) == 1:
+            cursor.execute(f'UPDATE soluna SET best_move = "{possible_moves[0]}", move_explanation = "forced" WHERE state = "{soluna_game.board}"')
+            conn.commit()
+            continue
+
+        wanted_score = get_wanted_score(soluna_game.board)
+
+        winning_moves = [move for move in possible_moves if evaluate_board(move) == wanted_score]
+        if len(winning_moves) == 1:
+            cursor.execute(f'UPDATE soluna SET best_move = "{winning_moves[0]}", move_explanation = "only winning move" WHERE state = "{soluna_game.board}"')
+            conn.commit()
+
+
 def main() -> None:
     """
     Main function
@@ -457,8 +504,15 @@ def main() -> None:
         print(f"Error connecting to MySQL: {e}")
         return
     # solve_game()
-    # update_is_determined()
+    update_is_determined()
     # update_move_num()
+    # update_possible_move_count()
+    update_best_move()
+
+    # positions_of_note = get_all_p1opt_p1win_positions()
+    # for position in positions_of_note:
+    #     cursor.execute(f'UPDATE soluna SET p1_optimal_p1_wins = 1 WHERE state = "{position}"')
+    #     conn.commit()
 
     # positions_of_note = get_all_p2opt_p2win_positions()
     # for position in positions_of_note:
