@@ -468,6 +468,7 @@ def update_best_move() -> None:
                     "none" if there is no moves
                     "forced" if there is only one move
                     "only winning move" if there is only one winning move
+                    "only move not determined losing " if there is only one move that is not determined losing
     """
     all_positions = get_all_positions()
 
@@ -491,6 +492,37 @@ def update_best_move() -> None:
             cursor.execute(f'UPDATE soluna SET best_move = "{winning_moves[0]}", move_explanation = "only winning move" WHERE state = "{soluna_game.board}"')
             conn.commit()
 
+        if len(winning_moves) == 0:
+            formatted_moves = ', '.join([f'"{move}"' for move in possible_moves])
+            cursor.execute(f'SELECT state, is_determined FROM soluna WHERE state IN ({formatted_moves})')
+            results = cursor.fetchall()
+
+            non_determined_positions = [move[0] for move in results if move[1] == 0]
+            if len(non_determined_positions) == 1:
+                cursor.execute(f'UPDATE soluna SET best_move = "{non_determined_positions[0]}", move_explanation = "only move not determined losing" WHERE state = "{soluna_game.board}"')
+                conn.commit()
+
+
+def populate_table() -> None:
+    """
+    Populate the table with all possible game states
+    """
+    solve_game()
+    update_is_determined()
+    update_move_num()
+    update_possible_move_count()
+    update_best_move()
+
+    positions_of_note = get_all_p1opt_p1win_positions()
+    for position in positions_of_note:
+        cursor.execute(f'UPDATE soluna SET p1_optimal_p1_wins = 1 WHERE state = "{position}"')
+        conn.commit()
+
+    positions_of_note = get_all_p2opt_p2win_positions()
+    for position in positions_of_note:
+        cursor.execute(f'UPDATE soluna SET p2_optimal_p2_wins = 1 WHERE state = "{position}"')
+        conn.commit()
+
 
 def main() -> None:
     """
@@ -503,21 +535,8 @@ def main() -> None:
     except mysql.connector.Error as e:
         print(f"Error connecting to MySQL: {e}")
         return
-    # solve_game()
     update_is_determined()
-    # update_move_num()
-    # update_possible_move_count()
     update_best_move()
-
-    # positions_of_note = get_all_p1opt_p1win_positions()
-    # for position in positions_of_note:
-    #     cursor.execute(f'UPDATE soluna SET p1_optimal_p1_wins = 1 WHERE state = "{position}"')
-    #     conn.commit()
-
-    # positions_of_note = get_all_p2opt_p2win_positions()
-    # for position in positions_of_note:
-    #     cursor.execute(f'UPDATE soluna SET p2_optimal_p2_wins = 1 WHERE state = "{position}"')
-    #     conn.commit()
 
     if 'conn' in locals() and conn.is_connected():
         cursor.close()
