@@ -1,6 +1,7 @@
 from copy import deepcopy
 from itertools import combinations
 from typing import List, Tuple, Literal
+import json
 
 from utils import nlist_to_ntup, ntup_to_nlist
 import mysql.connector
@@ -299,7 +300,7 @@ def update_board_is_determined(board: GameState) -> None:
     preconditions:
     - board is a valid game state
     - every possible move from the board has been evaluated and stored in the database
-    - every move after this board is_dermined has been updated
+    - every move after this board is_determined has been updated
     """
     soluna_game = Soluna(board)
     cursor.execute(f'SELECT eval FROM soluna WHERE state = "{soluna_game.board}"')
@@ -347,6 +348,10 @@ def update_is_determined() -> None:
     Where
     is_determined = 1 if the result of the game is known
     is_determined = 0 if the result of the game is unknown
+
+    preconditions:
+    - every possible move from the board has been evaluated and stored in the database
+    - every move after this board is_dertemined has been updated
     """
     all_positions = get_all_positions()
 
@@ -384,83 +389,169 @@ def update_move_num() -> None:
         cursor.execute(f'UPDATE soluna SET move_num = {get_move_num(position)} WHERE state = "{position}"')
         conn.commit()
 
-
-def get_all_p1opt_p1win_positions() -> List[GameState]:
+def update_reachable_p1opt(possible_positions_by_move: set[GameStateTuple]) -> None:
     """
-    Get all positions where player 1 is an optimal player
-    and is evaluated to win at the starting position.
-    """
-    possible_positions_by_move: list[set[GameStateTuple]] = []
-    # move 1 possible positions
-    starting_positions = set()
-    for config in STARTING_CONFIGURATIONS:
-        if evaluate_board(config) == 1:
-            starting_positions.add(nlist_to_ntup(config))
-    possible_positions_by_move.append(starting_positions)
+    Update the reachable column in the database where player 1 is an optimal player.
 
+    Where
+    reachable = 1 if the position is reachable from the starting position
+    """
     # move 2-12 possible positions
     is_player1_turn = True
     for positions_by_move in possible_positions_by_move:
         new_possible_positions = set()
         if is_player1_turn:
             for position in positions_by_move:
-                soluna_game = Soluna(ntup_to_nlist(position))
-                for move in nlist_to_ntup(soluna_game.get_moves()):
-                    if evaluate_board(ntup_to_nlist(move)) == 1:
-                        new_possible_positions.add(move)
+                cursor.execute(f'SELECT state, best_move FROM soluna WHERE state ="{ntup_to_nlist(position)}"')
+                result = cursor.fetchone()
+                if result[1]:
+                    best_move_str = result[1]
+                    best_move_list = json.loads(best_move_str)
+                    new_possible_positions.add(nlist_to_ntup(best_move_list))
+                    cursor.execute(f'UPDATE soluna SET reachable = 1 WHERE state = "{best_move_list}"')
+                    conn.commit()
         else:
             for position in positions_by_move:
                 soluna_game = Soluna(ntup_to_nlist(position))
-                new_possible_positions.update(nlist_to_ntup(soluna_game.get_moves()))
+                for move in soluna_game.get_moves():
+                    new_possible_positions.add(nlist_to_ntup(move))
+                    cursor.execute(f"UPDATE soluna SET reachable = 1 WHERE state = '{move}'")
+                    conn.commit()
+
         if len(new_possible_positions) != 0:
             possible_positions_by_move.append(new_possible_positions)
         is_player1_turn = not is_player1_turn
 
-    # convert list of set into flattened list in reverse move order
-    return [ntup_to_nlist(position) for positions in possible_positions_by_move for position in positions]
 
-
-
-def get_all_p2opt_p2win_positions() -> List[GameState]:
+def update_reachable_p2opt(possible_positions_by_move: set[GameStateTuple]) -> None:
     """
-    Get all positions where player 2 is an optimal player
-    and is evaluated to win at the starting position.
-    """
-    possible_positions_by_move: list[set[GameStateTuple]] = []
-    # move 1 possible positions
-    starting_positions = set()
-    for config in STARTING_CONFIGURATIONS:
-        if evaluate_board(config) == -1:
-            starting_positions.add(nlist_to_ntup(config))
-    possible_positions_by_move.append(starting_positions)
+    Update the reachable column in the database where player 2 is an optimal player.
 
+    Where
+    reachable = 1 if the position is reachable from the starting position.
+    """
     # move 2-12 possible positions
     is_player2_turn = False
     for positions_by_move in possible_positions_by_move:
         new_possible_positions = set()
         if is_player2_turn:
             for position in positions_by_move:
-                soluna_game = Soluna(ntup_to_nlist(position))
-                for move in nlist_to_ntup(soluna_game.get_moves()):
-                    if evaluate_board(ntup_to_nlist(move)) == -1:
-                        new_possible_positions.add(move)
+                cursor.execute(f'SELECT state, best_move FROM soluna WHERE state ="{ntup_to_nlist(position)}"')
+                result = cursor.fetchone()
+                if result[1]:
+                    best_move_str = result[1]
+                    best_move_list = json.loads(best_move_str)
+                    new_possible_positions.add(nlist_to_ntup(best_move_list))
+                    cursor.execute(f'UPDATE soluna SET reachable = 1 WHERE state = "{best_move_list}"')
+                    conn.commit()
         else:
             for position in positions_by_move:
                 soluna_game = Soluna(ntup_to_nlist(position))
-                new_possible_positions.update(nlist_to_ntup(soluna_game.get_moves()))
+                for move in soluna_game.get_moves():
+                    new_possible_positions.add(nlist_to_ntup(move))
+                    cursor.execute(f"UPDATE soluna SET reachable = 1 WHERE state = '{move}'")
+                    conn.commit()
+
         if len(new_possible_positions) != 0:
             possible_positions_by_move.append(new_possible_positions)
         is_player2_turn = not is_player2_turn
 
-    # convert list of set into flattened list in reverse move order
-    return [ntup_to_nlist(position) for positions in possible_positions_by_move for position in positions]
+
+def update_reachable() -> None:
+    """
+    Update the reachable column in the database.
+
+    Where
+    reachable = 1 if the position is reachable from the starting position under the assumption that one player has an optimal strategy
+    """
+    possible_positions_by_move: list[set[GameStateTuple]] = []
+    # move 1 possible positions
+    starting_positions: set[GameStateTuple] = set()
+    for config in STARTING_CONFIGURATIONS:
+        starting_positions.add(nlist_to_ntup(config))
+        cursor.execute(f'UPDATE soluna SET reachable = 1 WHERE state = "{config}"')
+        conn.commit()
+    possible_positions_by_move.append(starting_positions)
+
+    update_reachable_p1opt(deepcopy(possible_positions_by_move))
+    update_reachable_p2opt(possible_positions_by_move)
+
+
+
+# def get_all_p1opt_p1win_positions() -> List[GameState]:
+#     """
+#     Get all positions where player 1 is an optimal player
+#     and is evaluated to win at the starting position.
+#     """
+#     possible_positions_by_move: list[set[GameStateTuple]] = []
+#     # move 1 possible positions
+#     starting_positions = set()
+#     for config in STARTING_CONFIGURATIONS:
+#         if evaluate_board(config) == 1:
+#             starting_positions.add(nlist_to_ntup(config))
+#     possible_positions_by_move.append(starting_positions)
+
+#     # move 2-12 possible positions
+#     is_player1_turn = True
+#     for positions_by_move in possible_positions_by_move:
+#         new_possible_positions = set()
+#         if is_player1_turn:
+#             for position in positions_by_move:
+#                 soluna_game = Soluna(ntup_to_nlist(position))
+#                 for move in nlist_to_ntup(soluna_game.get_moves()):
+#                     if evaluate_board(ntup_to_nlist(move)) == 1:
+#                         new_possible_positions.add(move)
+#         else:
+#             for position in positions_by_move:
+#                 soluna_game = Soluna(ntup_to_nlist(position))
+#                 new_possible_positions.update(nlist_to_ntup(soluna_game.get_moves()))
+#         if len(new_possible_positions) != 0:
+#             possible_positions_by_move.append(new_possible_positions)
+#         is_player1_turn = not is_player1_turn
+
+#     # convert list of set into flattened list in reverse move order
+#     return [ntup_to_nlist(position) for positions in possible_positions_by_move for position in positions]
+
+
+
+# def get_all_p2opt_p2win_positions() -> List[GameState]:
+#     """
+#     Get all positions where player 2 is an optimal player
+#     and is evaluated to win at the starting position.
+#     """
+#     possible_positions_by_move: list[set[GameStateTuple]] = []
+#     # move 1 possible positions
+#     starting_positions = set()
+#     for config in STARTING_CONFIGURATIONS:
+#         if evaluate_board(config) == -1:
+#             starting_positions.add(nlist_to_ntup(config))
+#     possible_positions_by_move.append(starting_positions)
+
+#     # move 2-12 possible positions
+#     is_player2_turn = False
+#     for positions_by_move in possible_positions_by_move:
+#         new_possible_positions = set()
+#         if is_player2_turn:
+#             for position in positions_by_move:
+#                 soluna_game = Soluna(ntup_to_nlist(position))
+#                 for move in nlist_to_ntup(soluna_game.get_moves()):
+#                     if evaluate_board(ntup_to_nlist(move)) == -1:
+#                         new_possible_positions.add(move)
+#         else:
+#             for position in positions_by_move:
+#                 soluna_game = Soluna(ntup_to_nlist(position))
+#                 new_possible_positions.update(nlist_to_ntup(soluna_game.get_moves()))
+#         if len(new_possible_positions) != 0:
+#             possible_positions_by_move.append(new_possible_positions)
+#         is_player2_turn = not is_player2_turn
+
+#     # convert list of set into flattened list in reverse move order
+#     return [ntup_to_nlist(position) for positions in possible_positions_by_move for position in positions]
 
 
 def update_best_move() -> None:
     """
     Update the best_move and move_explanation column in the database.
-
-    (currently only if there is only one winning move)
 
     Where
     best_move = the board state of the best move
@@ -468,7 +559,7 @@ def update_best_move() -> None:
                     "none" if there is no moves
                     "forced" if there is only one move
                     "only winning move" if there is only one winning move
-                    "only move not determined losing " if there is only one move that is not determined losing
+                    "only move not determined losing" if there is only one move that is not determined losing
     """
     all_positions = get_all_positions()
 
@@ -513,15 +604,15 @@ def populate_table() -> None:
     update_possible_move_count()
     update_best_move()
 
-    positions_of_note = get_all_p1opt_p1win_positions()
-    for position in positions_of_note:
-        cursor.execute(f'UPDATE soluna SET p1_optimal_p1_wins = 1 WHERE state = "{position}"')
-        conn.commit()
+    # positions_of_note = get_all_p1opt_p1win_positions()
+    # for position in positions_of_note:
+    #     cursor.execute(f'UPDATE soluna SET p1_optimal_p1_wins = 1 WHERE state = "{position}"')
+    #     conn.commit()
 
-    positions_of_note = get_all_p2opt_p2win_positions()
-    for position in positions_of_note:
-        cursor.execute(f'UPDATE soluna SET p2_optimal_p2_wins = 1 WHERE state = "{position}"')
-        conn.commit()
+    # positions_of_note = get_all_p2opt_p2win_positions()
+    # for position in positions_of_note:
+    #     cursor.execute(f'UPDATE soluna SET p2_optimal_p2_wins = 1 WHERE state = "{position}"')
+    #     conn.commit()
 
 
 def main() -> None:
@@ -535,8 +626,9 @@ def main() -> None:
     except mysql.connector.Error as e:
         print(f"Error connecting to MySQL: {e}")
         return
-    update_is_determined()
-    update_best_move()
+    # update_is_determined()
+    # update_best_move()
+    update_reachable()
 
     if 'conn' in locals() and conn.is_connected():
         cursor.close()
