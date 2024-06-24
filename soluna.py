@@ -437,10 +437,12 @@ def update_reachable() -> None:
     for config in STARTING_CONFIGURATIONS:
         if evaluate_board(config) == 1:
             p1_winning_positions[0].add(nlist_to_ntup(config))
+            cursor.execute(f'UPDATE soluna SET p1_optimal_p1_wins = 1, p2_optimal_p1_wins = 1 WHERE state = "{config}"')
+            conn.commit()
         else:
             p2_winning_positions[0].add(nlist_to_ntup(config))
-        cursor.execute(f'UPDATE soluna SET p1_optimal_p1_wins = 1, p1_optimal_p2_wins = 1, p2_optimal_p1_wins = 1, p2_optimal_p2_wins = 1 WHERE state = "{config}"')
-        conn.commit()
+            cursor.execute(f'UPDATE soluna SET p1_optimal_p2_wins = 1, p2_optimal_p2_wins = 1 WHERE state = "{config}"')
+            conn.commit()
 
     update_reachable_column(deepcopy(p1_winning_positions), 1, "p1_optimal_p1_wins")
     update_reachable_column(p1_winning_positions, 2, "p1_optimal_p2_wins")
@@ -448,9 +450,53 @@ def update_reachable() -> None:
     update_reachable_column(p2_winning_positions, 2, "p2_optimal_p2_wins")
 
 
-def shadow_best_moves() -> None:
+def shadow_best_moves() -> bool:
     """
+    Update the best_move and move_explanation column in the database.
+    by choosing a already chosen reachable best move when given a choice
+    between multiple winning moves.
+
+    Where
+    move_explanation = "confirmed shadow"
+
+    Returns:
+    - True if any best move was shadowed, False otherwise
     """
+    updated = False
+    all_positions = get_all_positions()
+
+    for position in all_positions:
+        print(f"Updating best_move by shadowing, position {all_positions.index(position)+1}/{len(all_positions)}")
+        # only update if best_move is not already set
+        cursor.execute(f'SELECT best_move FROM soluna WHERE state = "{position}"')
+        best_move = cursor.fetchone()[0]
+        if best_move:
+            continue
+
+        soluna_game = Soluna(position)
+        possible_moves = soluna_game.get_moves()
+
+        wanted_score = get_wanted_score(soluna_game.board)
+        winning_moves = [move for move in possible_moves if evaluate_board(move) == wanted_score]
+        if len(winning_moves) > 1:
+            formatted_moves = ', '.join([f'"{move}"' for move in possible_moves])
+            player = 1 if is_player1_turn(soluna_game.board) else 2
+            cursor.execute(f'''SELECT best_move FROM soluna
+                                   WHERE best_move IN ({formatted_moves})
+                                    AND best_move IS NOT NULL
+                                    AND (p{player}_optimal_p1_wins = 1 OR
+                                         p{player}_optimal_p2_wins = 1)''')
+
+            results = cursor.fetchall()
+
+            if results:
+                best_move = results[0][0]
+                cursor.execute(f'''UPDATE soluna SET best_move = "{best_move}",
+                                                   move_explanation = "confirm shadow"
+                                 WHERE state = "{soluna_game.board}"''')
+                conn.commit()
+                updated = True
+    return updated
 
 def update_simple_best_move() -> None:
     """
@@ -497,6 +543,17 @@ def update_simple_best_move() -> None:
                 conn.commit()
 
 
+def shadow_best_move_loop() -> None:
+    """
+    Loop shadow_best_moves until no best move can be shadowed
+    """
+    count = 1
+    while shadow_best_moves():
+        print(f"iteration {count}")
+        update_reachable()
+        count += 1
+
+
 def populate_table() -> None:
     """
     Populate the table with all possible game states
@@ -508,7 +565,19 @@ def populate_table() -> None:
     update_simple_best_move()
 
     update_reachable()
+    shadow_best_move_loop()
 
+
+def update_best_move() -> None:
+    """
+    Update the best_move and move_explanation column in the database.
+
+    used when resetting the best_move column
+    """
+    update_is_determined()
+    update_simple_best_move()
+    update_reachable()
+    shadow_best_move_loop()
 
 def main() -> None:
     """
@@ -522,7 +591,9 @@ def main() -> None:
         print(f"Error connecting to MySQL: {e}")
         return
 
-    populate_table()
+    # populate_table()
+
+    update_best_move()
 
     if 'conn' in locals() and conn.is_connected():
         cursor.close()
