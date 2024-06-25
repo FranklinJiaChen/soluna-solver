@@ -295,8 +295,6 @@ def update_board_is_determined(board: GameState) -> None:
     """
     Update the is_determined column in the database
 
-    also updates move_explanation column to "any" if is_determined is 1
-
     preconditions:
     - board is a valid game state
     - every possible move from the board has been evaluated and stored in the database
@@ -322,7 +320,7 @@ def update_board_is_determined(board: GameState) -> None:
                 break
 
         if all_determined:
-            cursor.execute(f'UPDATE soluna SET is_determined = 1, move_explanation = "any" WHERE state = "{soluna_game.board}"')
+            cursor.execute(f'UPDATE soluna SET is_determined = 1 WHERE state = "{soluna_game.board}"')
             conn.commit()
 
 
@@ -505,8 +503,7 @@ def update_simple_best_move() -> None:
     Where
     best_move = the board state of the best move
     move_explanation = the explanation of the best move
-                    "none" if there is no moves
-                    "forced" if there is only one move
+                    "any" if the result of the game is known
                     "only winning move" if there is only one winning move
                     "only move not determined losing" if there is only one move that is not determined losing
     """
@@ -515,16 +512,15 @@ def update_simple_best_move() -> None:
     for position in all_positions:
         print(f"Updating best_move, position {all_positions.index(position)+1}/{len(all_positions)}")
         soluna_game = Soluna(position)
-        possible_moves = soluna_game.get_moves()
-        if len(possible_moves) == 0:
-            cursor.execute(f'UPDATE soluna SET move_explanation = "none" WHERE state = "{soluna_game.board}"')
-            conn.commit()
-            continue
-        if len(possible_moves) == 1:
-            cursor.execute(f'UPDATE soluna SET best_move = "{possible_moves[0]}", move_explanation = "forced" WHERE state = "{soluna_game.board}"')
+        cursor.execute(f'SELECT is_determined FROM soluna WHERE state = "{soluna_game.board}"')
+        is_determined = cursor.fetchone()[0]
+
+        if is_determined:
+            cursor.execute(f'UPDATE soluna SET move_explanation = "any" WHERE state = "{soluna_game.board}"')
             conn.commit()
             continue
 
+        possible_moves = soluna_game.get_moves()
         wanted_score = get_wanted_score(soluna_game.board)
 
         winning_moves = [move for move in possible_moves if evaluate_board(move) == wanted_score]
@@ -547,6 +543,7 @@ def shadow_best_move_loop() -> None:
     """
     Loop shadow_best_moves until no best move can be shadowed
     """
+    update_reachable()
     count = 1
     while shadow_best_moves():
         print(f"iteration {count}")
@@ -574,9 +571,7 @@ def update_best_move() -> None:
 
     used when resetting the best_move column
     """
-    update_is_determined()
     update_simple_best_move()
-    update_reachable()
     shadow_best_move_loop()
 
 def main() -> None:
