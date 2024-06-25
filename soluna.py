@@ -295,7 +295,7 @@ def update_board_is_determined(board: GameState) -> None:
     """
     Update the is_determined column in the database
 
-    preconditions:
+    Preconditions:
     - board is a valid game state
     - every possible move from the board has been evaluated and stored in the database
     - every move after this board is_determined has been updated
@@ -347,9 +347,9 @@ def update_is_determined() -> None:
     is_determined = 1 if the result of the game is known
     is_determined = 0 if the result of the game is unknown
 
-    preconditions:
+    Preconditions:
     - every possible move from the board has been evaluated and stored in the database
-    - every move after this board is_dertemined has been updated
+    - every move after this board is_determined has been updated
     """
     all_positions = get_all_positions()
 
@@ -360,18 +360,41 @@ def update_is_determined() -> None:
 
 def update_possible_move_count() -> None:
     """
-    Update the possible_move_count column in the database.
+    Update the possible_move_count, num_winning_moves, num_losing_moves,
+    winning_move_percentage, losing_move_percentage
+    columns in the database.
 
     Where
     possible_move_count = the number of possible moves from the board
+    num_winning_moves = the number of winning moves from the board
+    num_losing_moves = the number of losing moves from the board
+    winning_move_percentage = num_winning_moves/possible_move_count rounded to 4 decimal places
+    losing_move_percentage = num_losing_moves/possible_move_count rounded to 4 decimal places
+
+    Preconditions:
+    - every possible move from the board has been evaluated and stored in the database
     """
     all_positions = get_all_positions()
 
     for position in all_positions:
         print(f"Updating possible_move_count, position {all_positions.index(position)+1}/{len(all_positions)}")
         soluna_game = Soluna(position)
-        cursor.execute(f'UPDATE soluna SET possible_move_count = {len(soluna_game.get_moves())} WHERE state = "{position}"')
+        possible_moves = soluna_game.get_moves()
+        wanted_score = get_wanted_score(soluna_game.board)
+        num_winning_moves = len([move for move in possible_moves if evaluate_board(move) == wanted_score])
+        num_losing_moves = len([move for move in possible_moves if evaluate_board(move) == -wanted_score])
+        if possible_moves:
+            cursor.execute(f'UPDATE soluna SET possible_move_count = {len(possible_moves)}, num_winning_moves = {num_winning_moves}, num_losing_moves = {num_losing_moves}, winning_move_percentage = {round(num_winning_moves/len(possible_moves), 4)}, losing_move_percentage = {round(num_losing_moves/len(possible_moves), 4)} WHERE state = "{soluna_game.board}"')
+        else:
+            # if no moves set percentage to the game outcome
+            cursor.execute(f'SELECT eval FROM soluna WHERE state = "{soluna_game.board}"')
+            eval = cursor.fetchone()[0]
+            if eval == wanted_score:
+                cursor.execute(f'UPDATE soluna SET possible_move_count = 0, num_winning_moves = 0, num_losing_moves = 0, winning_move_percentage = 1, losing_move_percentage = 0 WHERE state = "{soluna_game.board}"')
+            else:
+                cursor.execute(f'UPDATE soluna SET possible_move_count = 0, num_winning_moves = 0, num_losing_moves = 0, winning_move_percentage = 0, losing_move_percentage = 1 WHERE state = "{soluna_game.board}"')
         conn.commit()
+
 
 def update_move_num() -> None:
     """
@@ -496,6 +519,7 @@ def shadow_best_moves() -> bool:
                 updated = True
     return updated
 
+
 def update_simple_best_move() -> None:
     """
     Update the best_move and move_explanation column in the database.
@@ -506,6 +530,10 @@ def update_simple_best_move() -> None:
                     "any" if the result of the game is known
                     "only winning move" if there is only one winning move
                     "only move not determined losing" if there is only one move that is not determined losing
+
+    Preconditions:
+    - every possible move from the board has been evaluated and stored in the database
+    - every move after this board is_dertermined has been updated
     """
     all_positions = get_all_positions()
 
@@ -588,7 +616,8 @@ def main() -> None:
 
     # populate_table()
 
-    update_best_move()
+    # update_best_move()
+    update_possible_move_count()
 
     if 'conn' in locals() and conn.is_connected():
         cursor.close()
