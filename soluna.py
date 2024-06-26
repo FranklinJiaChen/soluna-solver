@@ -513,7 +513,7 @@ def shadow_best_moves(explanation: str) -> bool:
             if results:
                 best_move = results[0][0]
                 cursor.execute(f'''UPDATE soluna SET best_move = "{best_move}",
-                                                   move_explanation = {explanation}
+                                                   move_explanation = "{explanation}"
                                  WHERE state = "{soluna_game.board}"''')
                 conn.commit()
                 updated = True
@@ -630,6 +630,8 @@ def update_best_move() -> None:
     update_simple_best_move()
     shadow_best_move_loop("confirmed shadow")
     update_best_losing_move()
+    shadow_best_move_loop("probabilistic shadow")
+
 
 def main() -> None:
     """
@@ -645,7 +647,8 @@ def main() -> None:
 
     # populate_table()
 
-    update_best_move()
+    # update_best_move()
+    shadow_best_move_loop("probabilistic shadow")
 
     if 'conn' in locals() and conn.is_connected():
         cursor.close()
