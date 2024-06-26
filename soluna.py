@@ -466,8 +466,8 @@ def update_reachable() -> None:
             conn.commit()
 
     update_reachable_column(deepcopy(p1_winning_positions), 1, "p1_optimal_p1_wins")
-    update_reachable_column(p1_winning_positions, 2, "p1_optimal_p2_wins")
-    update_reachable_column(deepcopy(p2_winning_positions), 1, "p2_optimal_p1_wins")
+    update_reachable_column(deepcopy(p2_winning_positions), 1, "p1_optimal_p2_wins")
+    update_reachable_column(p1_winning_positions, 2, "p2_optimal_p1_wins")
     update_reachable_column(p2_winning_positions, 2, "p2_optimal_p2_wins")
 
 
@@ -501,11 +501,10 @@ def shadow_best_moves(explanation: str) -> bool:
         wanted_score = get_wanted_score(soluna_game.board)
         winning_moves = [move for move in possible_moves if evaluate_board(move) == wanted_score]
         if len(winning_moves) > 1:
-            formatted_moves = ', '.join([f'"{move}"' for move in possible_moves])
+            formatted_moves = ', '.join([f'"{move}"' for move in winning_moves])
             player = 1 if is_player1_turn(soluna_game.board) else 2
             cursor.execute(f'''SELECT state FROM soluna
                                    WHERE state IN ({formatted_moves})
-                                    AND eval = {wanted_score}
                                     AND (p{player}_optimal_p1_wins = 1 OR
                                          p{player}_optimal_p2_wins = 1)''')
 
@@ -667,6 +666,7 @@ def update_best_move() -> None:
     update_best_losing_move()
     shadow_best_move_loop("probabilistic shadow")
     update_best_move_greedy()
+    update_reachable()
 
 
 
@@ -684,7 +684,8 @@ def main() -> None:
 
     # populate_table()
 
-    update_best_move()
+    # update_best_move()
+
 
 
     if 'conn' in locals() and conn.is_connected():
