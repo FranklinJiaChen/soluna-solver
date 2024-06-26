@@ -474,11 +474,12 @@ def update_reachable() -> None:
 def shadow_best_moves(explanation: str) -> bool:
     """
     Update the best_move and move_explanation column in the database.
-    by choosing a already chosen reachable best move when given a choice
+    by choosing a already chosen reachable move when given a choice
     between multiple winning moves.
 
     Where
-    move_explanation = "confirmed shadow"
+    move_explanation = "confirmed shadow" if the shadowed move is made with no assumption
+    move_explanation = "probabilistic shadow" if the shadowed move is made with the assumption that the opponent plays randomly next turn and perfect play after that
 
     Returns:
     - True if any best move was shadowed, False otherwise
@@ -502,9 +503,9 @@ def shadow_best_moves(explanation: str) -> bool:
         if len(winning_moves) > 1:
             formatted_moves = ', '.join([f'"{move}"' for move in possible_moves])
             player = 1 if is_player1_turn(soluna_game.board) else 2
-            cursor.execute(f'''SELECT best_move FROM soluna
-                                   WHERE best_move IN ({formatted_moves})
-                                    AND best_move IS NOT NULL
+            cursor.execute(f'''SELECT state FROM soluna
+                                   WHERE state IN ({formatted_moves})
+                                    AND eval = {wanted_score}
                                     AND (p{player}_optimal_p1_wins = 1 OR
                                          p{player}_optimal_p2_wins = 1)''')
 
@@ -613,6 +614,39 @@ def update_best_losing_move() -> None:
             cursor.execute(f'UPDATE soluna SET best_move = "{best_move}", move_explanation = "highest winning percentage if opponent plays randomly next turn and perfect play after that" WHERE state = "{soluna_game.board}"')
             conn.commit()
 
+def update_best_move_greedy() -> None:
+    """
+    Update the best_move and move_explanation column in the database.
+    when forced to choose amongst multiple winning moves, choose the one with fewest possible moves
+    (in hopes that this will lower the solution space)
+
+    Where
+    best_move = the board state of the best move
+    move_explanation = "winning move with fewest possible moves"
+    """
+    all_positions = get_all_positions()
+
+    for position in all_positions:
+        print(f"Updating best_move by greedy, position {all_positions.index(position)+1}/{len(all_positions)}")
+        # only update if move_explanation is not already set
+        cursor.execute(f'SELECT move_explanation FROM soluna WHERE state = "{position}"')
+        move_explanation = cursor.fetchone()[0]
+        if move_explanation:
+            continue
+
+        soluna_game = Soluna(position)
+        possible_moves = soluna_game.get_moves()
+        wanted_score = get_wanted_score(soluna_game.board)
+        winning_moves = [move for move in possible_moves if evaluate_board(move) == wanted_score]
+        if len(winning_moves) > 1:
+            formatted_moves = ', '.join([f'"{move}"' for move in possible_moves])
+            cursor.execute(f'SELECT state, possible_move_count FROM soluna WHERE state IN ({formatted_moves})')
+            results = cursor.fetchall()
+            best_move = min(results, key=lambda x: x[1])[0]
+            cursor.execute(f'UPDATE soluna SET best_move = "{best_move}", move_explanation = "winning move with fewest possible moves" WHERE state = "{soluna_game.board}"')
+            conn.commit()
+
+
 def populate_table() -> None:
     """
     Populate the table with all possible game states
@@ -622,6 +656,7 @@ def populate_table() -> None:
     update_move_num()
     update_possible_move_count()
     update_best_move()
+    update_reachable()
 
 def update_best_move() -> None:
     """
@@ -631,6 +666,8 @@ def update_best_move() -> None:
     shadow_best_move_loop("confirmed shadow")
     update_best_losing_move()
     shadow_best_move_loop("probabilistic shadow")
+    update_best_move_greedy()
+
 
 
 def main() -> None:
@@ -647,8 +684,8 @@ def main() -> None:
 
     # populate_table()
 
-    # update_best_move()
-    shadow_best_move_loop("probabilistic shadow")
+    update_best_move()
+
 
     if 'conn' in locals() and conn.is_connected():
         cursor.close()
