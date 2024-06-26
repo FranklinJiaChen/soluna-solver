@@ -471,7 +471,7 @@ def update_reachable() -> None:
     update_reachable_column(p2_winning_positions, 2, "p2_optimal_p2_wins")
 
 
-def shadow_best_moves() -> bool:
+def shadow_best_moves(explanation: str) -> bool:
     """
     Update the best_move and move_explanation column in the database.
     by choosing a already chosen reachable best move when given a choice
@@ -488,10 +488,10 @@ def shadow_best_moves() -> bool:
 
     for position in all_positions:
         print(f"Updating best_move by shadowing, position {all_positions.index(position)+1}/{len(all_positions)}")
-        # only update if best_move is not already set
+        # only update if move_explanation is not already set
         cursor.execute(f'SELECT best_move FROM soluna WHERE state = "{position}"')
-        best_move = cursor.fetchone()[0]
-        if best_move:
+        move_explanation = cursor.fetchone()[0]
+        if move_explanation:
             continue
 
         soluna_game = Soluna(position)
@@ -513,7 +513,7 @@ def shadow_best_moves() -> bool:
             if results:
                 best_move = results[0][0]
                 cursor.execute(f'''UPDATE soluna SET best_move = "{best_move}",
-                                                   move_explanation = "confirm shadow"
+                                                   move_explanation = {explanation}
                                  WHERE state = "{soluna_game.board}"''')
                 conn.commit()
                 updated = True
@@ -567,17 +567,51 @@ def update_simple_best_move() -> None:
                 conn.commit()
 
 
-def shadow_best_move_loop() -> None:
+def shadow_best_move_loop(explanation) -> None:
     """
     Loop shadow_best_moves until no best move can be shadowed
     """
     update_reachable()
     count = 1
-    while shadow_best_moves():
+    while shadow_best_moves(explanation):
         print(f"iteration {count}")
         update_reachable()
         count += 1
 
+
+def update_best_losing_move() -> None:
+    """
+    Update the best_move and move_explanation column in the database.
+    For when the board is a losing position.
+
+    Where
+    best_move = the board state of the best move
+    move_explanation = "highest winning percentage if opponent plays randomly next turn and perfect play after that"
+    """
+    all_positions = get_all_positions()
+
+    for position in all_positions:
+        print(f"Updating best_move for losing position, position {all_positions.index(position)+1}/{len(all_positions)}")
+        # only update if move_explanation is not already set
+        cursor.execute(f'SELECT move_explanation FROM soluna WHERE state = "{position}"')
+        move_explanation = cursor.fetchone()[0]
+        if move_explanation:
+            continue
+
+        soluna_game = Soluna(position)
+        possible_moves = soluna_game.get_moves()
+        wanted_score = get_wanted_score(soluna_game.board)
+        losing_moves = [move for move in possible_moves if evaluate_board(move) == -wanted_score]
+        if len(losing_moves) == len(possible_moves):
+            # the move is the one with the
+            # max losing move percentage as best move
+            # (losing since the board is opponent's turn/perspective)
+            formatted_moves = ', '.join([f'"{move}"' for move in possible_moves])
+            cursor.execute(f'SELECT state, losing_move_percentage FROM soluna WHERE state IN ({formatted_moves})')
+            results = cursor.fetchall()
+            best_move = max(results, key=lambda x: x[1])[0]
+            cursor.execute(f'UPDATE soluna SET best_move = "{best_move}", move_explanation = "highest winning percentage if opponent plays randomly next turn and perfect play after that" WHERE state = "{soluna_game.board}"')
+            conn.commit()
 
 def populate_table() -> None:
     """
@@ -587,20 +621,15 @@ def populate_table() -> None:
     update_is_determined()
     update_move_num()
     update_possible_move_count()
-    update_simple_best_move()
-
-    update_reachable()
-    shadow_best_move_loop()
-
+    update_best_move()
 
 def update_best_move() -> None:
     """
     Update the best_move and move_explanation column in the database.
-
-    used when resetting the best_move column
     """
     update_simple_best_move()
-    shadow_best_move_loop()
+    shadow_best_move_loop("confirmed shadow")
+    update_best_losing_move()
 
 def main() -> None:
     """
@@ -616,8 +645,7 @@ def main() -> None:
 
     # populate_table()
 
-    # update_best_move()
-    update_possible_move_count()
+    update_best_move()
 
     if 'conn' in locals() and conn.is_connected():
         cursor.close()
