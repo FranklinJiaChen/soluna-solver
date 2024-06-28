@@ -368,13 +368,14 @@ def update_is_determined() -> None:
         update_board_is_determined(position)
 
 
-def update_possible_move_count() -> None:
+def update_move_info() -> None:
     """
-    Update the possible_move_count, num_winning_moves, num_losing_moves,
+    Update the move_num, possible_move_count, num_winning_moves, num_losing_moves,
     winning_move_percentage, losing_move_percentage
     columns in the database.
 
     Where
+    move_num = the number of moves the board will make
     possible_move_count = the number of possible moves from the board
     num_winning_moves = the number of winning moves from the board
     num_losing_moves = the number of losing moves from the board
@@ -387,37 +388,22 @@ def update_possible_move_count() -> None:
     all_positions = get_all_positions()
 
     for position in all_positions:
-        print(f"Updating possible_move_count, position {all_positions.index(position)+1}/{len(all_positions)}")
+        print(f"Updating move info, position {all_positions.index(position)+1}/{len(all_positions)}")
         soluna_game = Soluna(position)
         possible_moves = soluna_game.get_moves()
         wanted_score = get_wanted_score(soluna_game.board)
         num_winning_moves = len([move for move in possible_moves if evaluate_board(move) == wanted_score])
         num_losing_moves = len([move for move in possible_moves if evaluate_board(move) == -wanted_score])
         if possible_moves:
-            cursor.execute(f'UPDATE soluna SET possible_move_count = {len(possible_moves)}, num_winning_moves = {num_winning_moves}, num_losing_moves = {num_losing_moves}, winning_move_percentage = {round(num_winning_moves/len(possible_moves), 4)}, losing_move_percentage = {round(num_losing_moves/len(possible_moves), 4)} WHERE state = "{soluna_game.board}"')
+            cursor.execute(f'UPDATE soluna SET move_num = {get_move_num(soluna_game.board)}, possible_move_count = {len(possible_moves)}, num_winning_moves = {num_winning_moves}, num_losing_moves = {num_losing_moves}, winning_move_percentage = {round(num_winning_moves/len(possible_moves), 4)}, losing_move_percentage = {round(num_losing_moves/len(possible_moves), 4)} WHERE state = "{soluna_game.board}"')
         else:
             # if no moves set percentage to the game outcome
             cursor.execute(f'SELECT eval FROM soluna WHERE state = "{soluna_game.board}"')
             eval = cursor.fetchone()[0]
             if eval == wanted_score:
-                cursor.execute(f'UPDATE soluna SET possible_move_count = 0, num_winning_moves = 0, num_losing_moves = 0, winning_move_percentage = 1, losing_move_percentage = 0 WHERE state = "{soluna_game.board}"')
+                cursor.execute(f'UPDATE soluna SET move_num = {get_move_num(soluna_game.board)}, possible_move_count = 0, num_winning_moves = 0, num_losing_moves = 0, winning_move_percentage = 1, losing_move_percentage = 0 WHERE state = "{soluna_game.board}"')
             else:
-                cursor.execute(f'UPDATE soluna SET possible_move_count = 0, num_winning_moves = 0, num_losing_moves = 0, winning_move_percentage = 0, losing_move_percentage = 1 WHERE state = "{soluna_game.board}"')
-        conn.commit()
-
-
-def update_move_num() -> None:
-    """
-    Update the move_num column in the database.
-
-    Where
-    starting positions have move_num = 1
-    """
-    all_positions = get_all_positions()
-
-    for position in all_positions:
-        print(f"Updating move_num, position {all_positions.index(position)+1}/{len(all_positions)}")
-        cursor.execute(f'UPDATE soluna SET move_num = {get_move_num(position)} WHERE state = "{position}"')
+                cursor.execute(f'UPDATE soluna SET move_num = {get_move_num(soluna_game.board)}, possible_move_count = 0, num_winning_moves = 0, num_losing_moves = 0, winning_move_percentage = 0, losing_move_percentage = 1 WHERE state = "{soluna_game.board}"')
         conn.commit()
 
 
@@ -724,10 +710,8 @@ def populate_table() -> None:
     """
     update_eval()
     update_is_determined()
-    update_move_num()
-    update_possible_move_count()
+    update_move_info()
     update_total_parents()
-
     update_best_move()
     update_reachable()
 
