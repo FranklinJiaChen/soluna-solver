@@ -278,6 +278,8 @@ def evaluate_board(board: GameState) -> int:
     """
     Evaluate a game board using memoization, storing results in a database.
 
+    Parameters:
+    - board: The game state
 
     Returns the evaluation score for the given board.
     """
