@@ -11,8 +11,9 @@ IntBool = Literal[0, 1]
 GameState:
 A 2D array where the rows denote the symbols
 and the columns denote the size of the stacks of that symbol.
-i.e. [[4, 1], [2, 2], [2, 1], []]. Represents the following board state:
-A 4 stack and 1 stack of symbol A
+i.e. [[4, 1], [2, 2], [2, 1], []].
+Represents the following board state:
+a 4 stack and 1 stack of symbol A
 two 2 stacks of symbol B
 a 2 stack and 1 stack of symbol C
 and no stack with symbol D
@@ -113,11 +114,16 @@ class Soluna:
     - board (GameState): The current state of the Soluna board.
 
     Methods:
-    - __init__(self, board: GameState): Initializes a Soluna game.
-        Also validates the provided board and normalizes the position.
-    - validate_board(self, board: GameState): Validates the provided board.
-    - normalize_position(self): Normalizes the position of the board.
-    - display_board(self): Displays the current state of the Soluna board.
+    - __init__(self, board: GameState):
+        Initializes a Soluna game.
+        Also validates the provided board
+        and normalizes the position.
+    - validate_board(self, board: GameState):
+        Validates the provided board.
+    - normalize_position(self):
+        Normalizes the position of the board.
+    - display_board(self):
+        Displays the current state of the Soluna board.
     - get_moves(self) -> List[GameState]:
         Get all possible moves from a given state.
 
@@ -244,7 +250,8 @@ class Soluna:
         # combining stacks of different symbol
         combinations_2 = list(combinations(range(NUM_SYMBOLS), 2))
         for (symbol1, symbol2) in combinations_2:
-            matching_nums = set(self.board[symbol1]) & set(self.board[symbol2])
+            matching_nums = (set(self.board[symbol1])
+                             & set(self.board[symbol2]))
             for num in matching_nums:
                 self.board[symbol1].remove(num)
                 self.board[symbol2].remove(num)
@@ -269,8 +276,8 @@ class Soluna:
 
     def get_formatted_moves(self) -> str:
         """
-        Get all possible moves from a given state in a formatted string for
-        SQL queries.
+        Get all possible moves from a given state
+        in a formatted string for SQL queries.
         """
         # if no moves, return empty string for SQL query
         if not self.get_moves():
@@ -284,24 +291,28 @@ def get_all_positions() -> List[GameState]:
     """
     possible_positions_by_move: list[set[GameStateTuple]] = []
     # move 1 possible positions
-    possible_positions_by_move.append(set(nlist_to_ntup(config) for config in STARTING_CONFIGURATIONS))
+    possible_positions_by_move.append(set(nlist_to_ntup(config)
+                                      for config in STARTING_CONFIGURATIONS))
 
     # move 2-12 possible positions
     for positions_by_move in possible_positions_by_move:
-        new_possible_positions = set()
+        new_positions = set()
         for position in positions_by_move:
             soluna_game = Soluna(ntup_to_nlist(position))
-            new_possible_positions.update(nlist_to_ntup(soluna_game.get_moves()))
-        if len(new_possible_positions) != 0:
-            possible_positions_by_move.append(new_possible_positions)
+            new_positions.update(nlist_to_ntup(soluna_game.get_moves()))
+        if len(new_positions) != 0:
+            possible_positions_by_move.append(new_positions)
 
-    # convert list of set into flattened list in reverse move order
-    return [ntup_to_nlist(position) for positions in possible_positions_by_move for position in positions]
+    # convert list of set into flattened list
+    return [ntup_to_nlist(position)
+            for positions in possible_positions_by_move
+            for position in positions]
 
 
 def evaluate_board(board: GameState) -> int:
     """
-    Evaluate a game board using memoization, storing results in a database.
+    Evaluate a game board using memoization,
+    retrieves and stores results in a database.
 
     Parameters:
     - board: The game state
@@ -346,11 +357,15 @@ def update_board_is_determined(board: GameState) -> None:
 
     Preconditions:
     - board is a valid game state
-    - every possible move from the board has been evaluated and stored in the database
+    - every possible move from the board
+      has been evaluated and stored in the database
     - every move after this board is_determined has been updated
     """
     soluna_game = Soluna(board)
-    cursor.execute(f'''SELECT eval FROM soluna WHERE state = "{soluna_game.board}"''')
+    cursor.execute(f'''
+                    SELECT eval FROM soluna
+                    WHERE state = "{soluna_game.board}"
+                    ''')
     board_data = cursor.fetchone()
 
     if board_data:
@@ -359,7 +374,10 @@ def update_board_is_determined(board: GameState) -> None:
         possible_moves = soluna_game.get_moves()
 
         for move in possible_moves:
-            cursor.execute(f'SELECT eval, is_determined FROM soluna WHERE state = "{move}"')
+            cursor.execute(f'''
+                             SELECT eval, is_determined FROM soluna
+                             WHERE state = "{move}"
+                            ''')
             move_data = cursor.fetchone()
             if move_data[1] == 0:
                 all_determined = False
@@ -369,7 +387,11 @@ def update_board_is_determined(board: GameState) -> None:
                 break
 
         if all_determined:
-            cursor.execute(f'UPDATE soluna SET is_determined = 1 WHERE state = "{soluna_game.board}"')
+            cursor.execute(f'''
+                            UPDATE soluna
+                            SET is_determined = 1
+                            WHERE state = "{soluna_game.board}"
+                            ''')
             conn.commit()
 
 
@@ -397,16 +419,16 @@ def update_is_determined() -> None:
     is_determined = 0 if the result of the game is unknown
 
     Preconditions:
-    - every possible move from the board has been evaluated and stored in the database
+    - every possible move from the board
+      has been evaluated and stored in the database
     - every move after this board is_determined has been updated
     """
     all_positions = get_all_positions()
 
     for index, position in enumerate(all_positions[::-1]):
-        print(f"Updating is_determined, position {index+1}/{len(all_positions)}")
+        print("Updating is_determined, position "
+              f"{index+1}/{len(all_positions)}")
         soluna_game = Soluna(position)
-        # cursor.execute(f'''SELECT eval FROM soluna WHERE state = "{soluna_game.board}"''')
-        # board_data = cursor.fetchone()
 
         all_determined = True
         determined_result = evaluate_board(position)
@@ -483,20 +505,24 @@ def update_move_info() -> None:
 def update_reachable_column(possible_positions_by_move: set[GameStateTuple],
                             optimal_player: int, column: str) -> None:
     """
-    Update a reachable column in the database where player 1 is an optimal player.
+    Update a reachable column in the database
 
     Parameters:
-    - possible_positions_by_move: The possible positions by move
-    - optimal_player: 1 or 2 respectively for player 1 or 2
-    - column: The column to update
-              p1_optimal_p1_wins,
-              p1_optimal_p2_wins,
-              p2_optimal_p1_wins,
-              p2_optimal_p2_wins
+    - possible_positions_by_move:
+        The possible positions by move.
+        Initially contains the starting positions.
+    - optimal_player:
+        1 or 2 respectively for player 1 or 2
+    - column:
+        The column to update
+        p1_optimal_p1_wins,
+        p1_optimal_p2_wins,
+        p2_optimal_p1_wins,
+        p2_optimal_p2_wins
 
-              where optimal means the player plays optimally
-              and wins means the evaluation of the starting position is for
-              that player to win
+        where optimal means the player plays optimally
+        and wins means the evaluation of the starting position is for
+        that player to win
 
     Where
     column = 1 if the position is reachable from the starting position
@@ -530,7 +556,8 @@ def update_reachable_column(possible_positions_by_move: set[GameStateTuple],
                 for move in soluna_game.get_moves():
                     new_possible_positions.add(nlist_to_ntup(move))
                     cursor.execute(f'''
-                                    UPDATE soluna SET {column} = 1 WHERE state = '{move}'
+                                    UPDATE soluna SET {column} = 1
+                                    WHERE state = '{move}'
                                     ''')
 
         if len(new_possible_positions) != 0:
@@ -543,11 +570,11 @@ def update_reachable() -> None:
     """
     Update the reachable columns in the database.
     """
-    p1_winning_positions: list[set[GameStateTuple]] = [set()]
-    p2_winning_positions: list[set[GameStateTuple]] = [set()]
+    p1_win_positions: list[set[GameStateTuple]] = [set()]
+    p2_win_positions: list[set[GameStateTuple]] = [set()]
     for config in STARTING_CONFIGURATIONS:
         if evaluate_board(config) == 1:
-            p1_winning_positions[0].add(nlist_to_ntup(config))
+            p1_win_positions[0].add(nlist_to_ntup(config))
             cursor.execute(f'''
                             UPDATE soluna
                             SET p1_optimal_p1_wins = 1,
@@ -555,7 +582,7 @@ def update_reachable() -> None:
                             WHERE state = "{config}"
                             ''')
         else:
-            p2_winning_positions[0].add(nlist_to_ntup(config))
+            p2_win_positions[0].add(nlist_to_ntup(config))
             cursor.execute(f'''
                             UPDATE soluna
                             SET p1_optimal_p2_wins = 1,
@@ -564,10 +591,12 @@ def update_reachable() -> None:
                             ''')
     conn.commit()
 
-    update_reachable_column(deepcopy(p1_winning_positions), 1, "p1_optimal_p1_wins")
-    update_reachable_column(deepcopy(p2_winning_positions), 1, "p1_optimal_p2_wins")
-    update_reachable_column(p1_winning_positions, 2, "p2_optimal_p1_wins")
-    update_reachable_column(p2_winning_positions, 2, "p2_optimal_p2_wins")
+    update_reachable_column(deepcopy(p1_win_positions),
+                            1, "p1_optimal_p1_wins")
+    update_reachable_column(deepcopy(p2_win_positions),
+                            1, "p1_optimal_p2_wins")
+    update_reachable_column(p1_win_positions, 2, "p2_optimal_p1_wins")
+    update_reachable_column(p2_win_positions, 2, "p2_optimal_p2_wins")
 
 
 def shadow_best_moves(explanation: str) -> bool:
@@ -577,11 +606,12 @@ def shadow_best_moves(explanation: str) -> bool:
     between multiple winning moves.
 
     Where
-    move_explanation = "confirmed shadow" if the shadowed move
-        is made with no assumption
-    move_explanation = "probabilistic shadow" if the shadowed move is made with
-        the assumption that the opponent plays randomly next turn
-        and perfect play after that
+    move_explanation =
+        "confirmed shadow" if the shadowed move
+            is made with no assumption
+        "probabilistic shadow" if the shadowed move is made with
+            the assumption that the opponent plays randomly next turn
+            and perfect play after that
 
     Returns:
     - True if any best move was shadowed, False otherwise
@@ -594,7 +624,8 @@ def shadow_best_moves(explanation: str) -> bool:
               f"position {index+1}/{len(all_positions)}")
         # only update if move_explanation is not already set
         cursor.execute(f'''
-                        SELECT best_move FROM soluna WHERE state = "{position}"
+                        SELECT best_move FROM soluna
+                        WHERE state = "{position}"
                         ''')
         move_explanation = cursor.fetchone()[0]
         if move_explanation:
@@ -614,7 +645,8 @@ def shadow_best_moves(explanation: str) -> bool:
                             SELECT state FROM soluna
                             WHERE state IN ({formatted_moves})
                                         AND (p{player}_optimal_p1_wins = 1 OR
-                                             p{player}_optimal_p2_wins = 1)''')
+                                             p{player}_optimal_p2_wins = 1)
+                            ''')
 
             results = cursor.fetchall()
 
@@ -644,7 +676,8 @@ def update_simple_best_move() -> None:
             if there is only one move that is not determined losing
 
     Preconditions:
-    - every possible move from the board has been evaluated and stored in the database
+    - every possible move from the board
+      has been evaluated and stored in the database
     - every move after this board is_dertermined has been updated
     """
     all_positions = get_all_positions()
@@ -722,14 +755,22 @@ def update_best_losing_move() -> None:
 
     Where
     best_move = the board state of the best move
-    move_explanation = "highest winning percentage if opponent plays randomly next turn and perfect play after that"
+    move_explanation = "highest winning percentage if opponent
+                        plays randomly next turn
+                        and perfect play after that"
     """
+    EXPLANATION = "highest winning percentage if opponent plays randomly "\
+                  "next turn and perfect play after that"
     all_positions = get_all_positions()
 
     for index, position in enumerate(all_positions):
-        print(f"Updating best_move for losing position, position {index+1}/{len(all_positions)}")
+        print("Updating best_move for losing position, position "
+              f"{index+1}/{len(all_positions)}")
         # only update if move_explanation is not already set
-        cursor.execute(f'SELECT move_explanation FROM soluna WHERE state = "{position}"')
+        cursor.execute(f'''
+                        SELECT move_explanation FROM soluna
+                        WHERE state = "{position}"
+                        ''')
         move_explanation = cursor.fetchone()[0]
         if move_explanation:
             continue
@@ -737,19 +778,23 @@ def update_best_losing_move() -> None:
         soluna_game = Soluna(position)
         possible_moves = soluna_game.get_moves()
         wanted_score = get_wanted_score(soluna_game.board)
-        losing_moves = [move for move in possible_moves if evaluate_board(move) == -wanted_score]
+        losing_moves = [move for move in possible_moves
+                        if evaluate_board(move) == -wanted_score]
         if len(losing_moves) == len(possible_moves):
             # the move is the one with the
             # max losing move percentage as best move
             # (losing since the board is opponent's turn/perspective)
-            formatted_moves = ', '.join([f'"{move}"' for move in possible_moves])
-            cursor.execute(f'SELECT state, losing_move_percentage FROM soluna WHERE state IN ({formatted_moves})')
+            formatted_moves = soluna_game.get_formatted_moves()
+            cursor.execute(f'''
+                            SELECT state, losing_move_percentage
+                            FROM soluna WHERE state IN ({formatted_moves})
+                            ''')
             results = cursor.fetchall()
             best_move = max(results, key=lambda x: x[1])[0]
             cursor.execute(f'''
                             UPDATE soluna
                             SET best_move = "{best_move}",
-                                move_explanation = "highest winning percentage if opponent plays randomly next turn and perfect play after that"
+                                move_explanation = {EXPLANATION}
                             WHERE state = "{soluna_game.board}"
                             ''')
             conn.commit()
@@ -760,45 +805,62 @@ def update_total_parents() -> None:
     Update the total_parents column in the database.
 
     Where
-    total_parents = the total number of positions that can reach the current position
+    total_parents = the total number of positions
+                    that can reach the current position
     """
     all_positions = get_all_positions()
 
     # exit if total_parents is already updated
-    cursor.execute(f'SELECT total_parents FROM soluna WHERE total_parents > 0')
-    if cursor.fetchone():
-        return
+    cursor.execute(f'''
+                    SELECT total_parents FROM soluna
+                    WHERE total_parents > 0
+                    ''')
+    if cursor.fetchone(): return
 
     for index, position in enumerate(all_positions):
-        print(f"Updating total_parents, position {index+1}/{len(all_positions)}")
+        print("Updating total_parents, position "
+              f"{index+1}/{len(all_positions)}")
         soluna_game = Soluna(position)
         possible_moves = soluna_game.get_moves()
 
         # add one to total parents to each possible move
         for move in possible_moves:
-            cursor.execute(f'SELECT total_parents FROM soluna WHERE state = "{move}"')
+            cursor.execute(f'''
+                            SELECT total_parents FROM soluna
+                            WHERE state = "{move}"
+                            ''')
             total_parents = cursor.fetchone()[0]
-            cursor.execute(f'UPDATE soluna SET total_parents = {total_parents+1} WHERE state = "{move}"')
+            cursor.execute(f'''
+                            UPDATE soluna
+                            SET total_parents = {total_parents+1}
+                            WHERE state = "{move}"
+                            ''')
             conn.commit()
 
 
 def update_best_move_greedy() -> None:
     """
     Update the best_move and move_explanation column in the database.
-    when forced to choose amongst multiple winning moves, choose the one with the most parent states
-    amonst ties, choose the one with the fewest possible moves
+    when forced to choose amongst multiple winning moves,
+    choose the one with the most parent states
     (in hopes that this will lower the solution space)
 
     Where
     best_move = the board state of the best move
     move_explanation = "winning move with the most parent states"
     """
+    EXPLANATION = "winning move with the most parent states"
     all_positions = get_all_positions()
 
     for index, position in enumerate(all_positions):
-        print(f"Updating best_move by greedy, position {index+1}/{len(all_positions)}")
+        print("Updating best_move by greedy, position "
+              f"{index+1}/{len(all_positions)}")
         # only update if move_explanation is not already set
-        cursor.execute(f'SELECT move_explanation FROM soluna WHERE state = "{position}"')
+        cursor.execute(f'''
+                        SELECT move_explanation
+                        FROM soluna
+                        WHERE state = "{position}"
+                        ''')
         move_explanation = cursor.fetchone()[0]
         if move_explanation:
             continue
@@ -806,16 +868,22 @@ def update_best_move_greedy() -> None:
         soluna_game = Soluna(position)
         possible_moves = soluna_game.get_moves()
         wanted_score = get_wanted_score(soluna_game.board)
-        winning_moves = [move for move in possible_moves if evaluate_board(move) == wanted_score]
+        winning_moves = [move for move in possible_moves
+                        if evaluate_board(move) == wanted_score]
         if len(winning_moves) > 1:
-            formatted_moves = ', '.join([f'"{move}"' for move in possible_moves])
-            cursor.execute(f'SELECT state, total_parents FROM soluna WHERE state IN ({formatted_moves})')
+            formatted_moves = ', '.join([f'"{move}"'
+                                         for move in possible_moves])
+            cursor.execute(f'''
+                            SELECT state, total_parents
+                            FROM soluna
+                            WHERE state IN ({formatted_moves})
+                            ''')
             results = cursor.fetchall()
             best_move = max(results, key=lambda x: x[1])[0]
             cursor.execute(f'''
                             UPDATE soluna
                             SET best_move = "{best_move}",
-                                move_explanation = "winning move with the most parent states"
+                                move_explanation = {EXPLANATION}
                             WHERE state = "{soluna_game.board}"
                             ''')
             conn.commit()
