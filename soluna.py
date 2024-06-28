@@ -278,28 +278,39 @@ def evaluate_board(board: GameState) -> int:
     """
     Evaluate a game board using memoization, storing results in a database.
 
+
     Returns the evaluation score for the given board.
     """
     soluna_game = Soluna(board)
 
-    cursor.execute(f'SELECT eval FROM soluna WHERE state = "{soluna_game.board}"')
+    cursor.execute(f'''
+                    SELECT eval FROM soluna
+                    WHERE state = "{soluna_game.board}"
+                    ''')
     board_data = cursor.fetchone()
 
-    if board_data:
-        return board_data[0]
+    if board_data[0]: return board_data[0]
 
     possible_moves = soluna_game.get_moves()
     wanted_score = get_wanted_score(board)
 
-    if wanted_score in [evaluate_board(move) for move in possible_moves]:
-        cursor.execute(f'INSERT INTO soluna (state, eval) VALUES ("{soluna_game.board}", {wanted_score})')
-        conn.commit()
-        return wanted_score
+    eval = -wanted_score
+    if any(evaluate_board(move) == wanted_score for move in possible_moves):
+        eval = wanted_score
 
-    cursor.execute(f'INSERT INTO soluna (state, eval) VALUES ("{soluna_game.board}", {-wanted_score})')
+    if board_data:
+        cursor.execute(f'''
+                        UPDATE soluna SET eval = {eval}
+                        WHERE state = "{soluna_game.board}"
+                        ''')
+    else:
+        cursor.execute(f'''
+                        INSERT INTO soluna (state, eval)
+                        VALUES ("{soluna_game.board}", {eval})
+                        ''')
+
     conn.commit()
-    return -wanted_score
-
+    return eval
 
 def update_board_is_determined(board: GameState) -> None:
     """
@@ -344,10 +355,9 @@ def update_eval() -> None:
     """
     all_positions = get_all_positions()
 
-    for position in all_positions[::-1]:
-        print(f"Position {len(all_positions)-all_positions.index(position)}/{len(all_positions)}")
+    for index, position in enumerate(all_positions[::-1]):
+        print(f"Updating eval, position {index+1}/{len(all_positions)}")
         evaluate_board(position)
-
 
 def update_is_determined() -> None:
     """
@@ -363,8 +373,8 @@ def update_is_determined() -> None:
     """
     all_positions = get_all_positions()
 
-    for position in all_positions[::-1]:
-        print(f"Updating is_determined, position {len(all_positions)-all_positions.index(position)}/{len(all_positions)}")
+    for index, position in enumerate(all_positions[::-1]):
+        print(f"Updating is_determined, position {index+1}/{len(all_positions)}")
         update_board_is_determined(position)
 
 
@@ -387,8 +397,8 @@ def update_move_info() -> None:
     """
     all_positions = get_all_positions()
 
-    for position in all_positions:
-        print(f"Updating move info, position {all_positions.index(position)+1}/{len(all_positions)}")
+    for index, position in enumerate(all_positions):
+        print(f"Updating move info, position {index+1}/{len(all_positions)}")
         soluna_game = Soluna(position)
         possible_moves = soluna_game.get_moves()
         wanted_score = get_wanted_score(soluna_game.board)
@@ -484,8 +494,8 @@ def shadow_best_moves(explanation: str) -> bool:
     updated = False
     all_positions = get_all_positions()
 
-    for position in all_positions:
-        print(f"Updating best_move by shadowing, position {all_positions.index(position)+1}/{len(all_positions)}")
+    for index, position in enumerate(all_positions):
+        print(f"Updating best_move by shadowing, position {index+1}/{len(all_positions)}")
         # only update if move_explanation is not already set
         cursor.execute(f'SELECT best_move FROM soluna WHERE state = "{position}"')
         move_explanation = cursor.fetchone()[0]
@@ -534,8 +544,8 @@ def update_simple_best_move() -> None:
     """
     all_positions = get_all_positions()
 
-    for position in all_positions:
-        print(f"Updating best_move, position {all_positions.index(position)+1}/{len(all_positions)}")
+    for index, position in enumerate(all_positions):
+        print(f"Updating best_move, position {index+1}/{len(all_positions)}")
         soluna_game = Soluna(position)
         cursor.execute(f'SELECT is_determined FROM soluna WHERE state = "{soluna_game.board}"')
         is_determined = cursor.fetchone()[0]
@@ -587,8 +597,8 @@ def update_best_losing_move() -> None:
     """
     all_positions = get_all_positions()
 
-    for position in all_positions:
-        print(f"Updating best_move for losing position, position {all_positions.index(position)+1}/{len(all_positions)}")
+    for index, position in enumerate(all_positions):
+        print(f"Updating best_move for losing position, position {index+1}/{len(all_positions)}")
         # only update if move_explanation is not already set
         cursor.execute(f'SELECT move_explanation FROM soluna WHERE state = "{position}"')
         move_explanation = cursor.fetchone()[0]
@@ -611,39 +621,6 @@ def update_best_losing_move() -> None:
             conn.commit()
 
 
-def update_best_move_greedy() -> None:
-    """
-    Update the best_move and move_explanation column in the database.
-    when forced to choose amongst multiple winning moves, choose the one with fewest possible moves
-    (in hopes that this will lower the solution space)
-
-    Where
-    best_move = the board state of the best move
-    move_explanation = "winning move with fewest possible moves"
-    """
-    all_positions = get_all_positions()
-
-    for position in all_positions:
-        print(f"Updating best_move by greedy, position {all_positions.index(position)+1}/{len(all_positions)}")
-        # only update if move_explanation is not already set
-        cursor.execute(f'SELECT move_explanation FROM soluna WHERE state = "{position}"')
-        move_explanation = cursor.fetchone()[0]
-        if move_explanation:
-            continue
-
-        soluna_game = Soluna(position)
-        possible_moves = soluna_game.get_moves()
-        wanted_score = get_wanted_score(soluna_game.board)
-        winning_moves = [move for move in possible_moves if evaluate_board(move) == wanted_score]
-        if len(winning_moves) > 1:
-            formatted_moves = ', '.join([f'"{move}"' for move in possible_moves])
-            cursor.execute(f'SELECT state, possible_move_count FROM soluna WHERE state IN ({formatted_moves})')
-            results = cursor.fetchall()
-            best_move = min(results, key=lambda x: x[1])[0]
-            cursor.execute(f'UPDATE soluna SET best_move = "{best_move}", move_explanation = "winning move with fewest possible moves" WHERE state = "{soluna_game.board}"')
-            conn.commit()
-
-
 def update_total_parents() -> None:
     """
     Update the total_parents column in the database.
@@ -658,8 +635,8 @@ def update_total_parents() -> None:
     if cursor.fetchone():
         return
 
-    for position in all_positions:
-        print(f"Updating total_parents, position {all_positions.index(position)+1}/{len(all_positions)}")
+    for index, position in enumerate(all_positions):
+        print(f"Updating total_parents, position {index+1}/{len(all_positions)}")
         soluna_game = Soluna(position)
         possible_moves = soluna_game.get_moves()
 
@@ -684,8 +661,8 @@ def update_best_move_greedy() -> None:
     """
     all_positions = get_all_positions()
 
-    for position in all_positions:
-        print(f"Updating best_move by greedy, position {all_positions.index(position)+1}/{len(all_positions)}")
+    for index, position in enumerate(all_positions):
+        print(f"Updating best_move by greedy, position {index+1}/{len(all_positions)}")
         # only update if move_explanation is not already set
         cursor.execute(f'SELECT move_explanation FROM soluna WHERE state = "{position}"')
         move_explanation = cursor.fetchone()[0]
@@ -702,6 +679,7 @@ def update_best_move_greedy() -> None:
             results = cursor.fetchall()
             best_move = max(results, key=lambda x: x[1])[0]
             cursor.execute(f'UPDATE soluna SET best_move = "{best_move}", move_explanation = "winning move with the most parent states" WHERE state = "{soluna_game.board}"')
+            conn.commit()
 
 
 def populate_table() -> None:
@@ -741,6 +719,7 @@ def main() -> None:
         return
 
     populate_table()
+
     if 'conn' in locals() and conn.is_connected():
         cursor.close()
         conn.close()
