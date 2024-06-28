@@ -912,7 +912,6 @@ def update_best_move() -> None:
     update_best_move_greedy()
 
 
-
 def main() -> None:
     """
     Main function
