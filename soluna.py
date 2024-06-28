@@ -62,6 +62,7 @@ def get_total_stacks(board: GameState) -> int:
     """
     return sum(len(symbol) for symbol in board)
 
+
 def get_move_num(board: GameState) -> int:
     """
     Get the number of moves in a board
@@ -75,6 +76,7 @@ def get_move_num(board: GameState) -> int:
     """
     return NUM_TILES-get_total_stacks(board) + 1
 
+
 def is_player1_turn(board: GameState) -> IntBool:
     """
     Determine if it is player 1's turn
@@ -87,6 +89,7 @@ def is_player1_turn(board: GameState) -> IntBool:
     """
     return get_move_num(board) % 2
 
+
 def get_wanted_score(board: GameState) -> int:
     """
     Get the wanted score of the game by the current player
@@ -98,6 +101,7 @@ def get_wanted_score(board: GameState) -> int:
     1 if it is player 1's turn, -1 otherwise
     """
     return 2 * is_player1_turn(board) - 1
+
 
 class Soluna:
     """
@@ -152,6 +156,7 @@ class Soluna:
         self.board = deepcopy(board)
         self.normalize_position()
 
+
     def validate_board(self, board: GameState) -> None:
         """
         Validate the provided board.
@@ -176,6 +181,7 @@ class Soluna:
         if not all(isinstance(stack, int) and stack >= 1 for symbol in board for stack in symbol):
             raise ValueError("Invalid board: Board's stacks must be positive integers.")
 
+
     def display_board(self) -> None:
         """
         Display the current state of the Soluna board.
@@ -187,6 +193,7 @@ class Soluna:
             label = next(labels)
             if symbol:
                 print(" ".join(f"{stack}{label}" for stack in symbol))
+
 
     def normalize_position(self) -> None:
         """
@@ -200,6 +207,7 @@ class Soluna:
             self.board[i] = sorted(self.board[i], reverse=True)
 
         self.board = sorted(self.board, key=lambda symbol: (len(symbol), symbol), reverse=True)
+
 
     def get_moves(self) -> List[GameState]:
         """
@@ -244,6 +252,7 @@ class Soluna:
                 unique_moves.append(move)
         return unique_moves
 
+
 def get_all_positions() -> List[GameState]:
     """
     Use breadth-first search to find all possible game states by move.
@@ -263,6 +272,7 @@ def get_all_positions() -> List[GameState]:
 
     # convert list of set into flattened list in reverse move order
     return [ntup_to_nlist(position) for positions in possible_positions_by_move for position in positions]
+
 
 def evaluate_board(board: GameState) -> int:
     """
@@ -409,6 +419,7 @@ def update_move_num() -> None:
         print(f"Updating move_num, position {all_positions.index(position)+1}/{len(all_positions)}")
         cursor.execute(f'UPDATE soluna SET move_num = {get_move_num(position)} WHERE state = "{position}"')
         conn.commit()
+
 
 def update_reachable_column(possible_positions_by_move: set[GameStateTuple], optimal_player: int, column: str) -> None:
     """
@@ -647,39 +658,6 @@ def update_best_move_greedy() -> None:
             conn.commit()
 
 
-# def update_best_move_greedy() -> None:
-#     """
-#     Update the best_move and move_explanation column in the database.
-#     when forced to choose amongst multiple winning moves, choose the one with fewest possible moves
-#     (in hopes that this will lower the solution space)
-
-#     Where
-#     best_move = the board state of the best move
-#     move_explanation = "winning move with fewest possible moves"
-#     """
-#     all_positions = get_all_positions()
-
-#     for position in all_positions:
-#         print(f"Updating best_move by greedy, position {all_positions.index(position)+1}/{len(all_positions)}")
-#         # only update if move_explanation is not already set
-#         cursor.execute(f'SELECT move_explanation FROM soluna WHERE state = "{position}"')
-#         move_explanation = cursor.fetchone()[0]
-#         if move_explanation:
-#             continue
-
-#         soluna_game = Soluna(position)
-#         possible_moves = soluna_game.get_moves()
-#         wanted_score = get_wanted_score(soluna_game.board)
-#         winning_moves = [move for move in possible_moves if evaluate_board(move) == wanted_score]
-#         if len(winning_moves) > 1:
-#             formatted_moves = ', '.join([f'"{move}"' for move in possible_moves])
-#             cursor.execute(f'SELECT state, possible_move_count FROM soluna WHERE state IN ({formatted_moves})')
-#             results = cursor.fetchall()
-#             best_move = min(results, key=lambda x: x[1])[0]
-#             cursor.execute(f'UPDATE soluna SET best_move = "{best_move}", move_explanation = "winning move with fewest possible moves" WHERE state = "{soluna_game.board}"')
-#             conn.commit()
-
-
 def update_total_parents() -> None:
     """
     Update the total_parents column in the database.
@@ -711,6 +689,7 @@ def update_best_move_greedy() -> None:
     """
     Update the best_move and move_explanation column in the database.
     when forced to choose amongst multiple winning moves, choose the one with the most parent states
+    amonst ties, choose the one with the fewest possible moves
     (in hopes that this will lower the solution space)
 
     Where
@@ -752,6 +731,7 @@ def populate_table() -> None:
     update_best_move()
     update_reachable()
 
+
 def update_best_move() -> None:
     """
     Update the best_move and move_explanation column in the database.
@@ -776,11 +756,7 @@ def main() -> None:
         print(f"Error connecting to MySQL: {e}")
         return
 
-    # populate_table()
-
-    update_best_move()
-
-
+    populate_table()
     if 'conn' in locals() and conn.is_connected():
         cursor.close()
         conn.close()
