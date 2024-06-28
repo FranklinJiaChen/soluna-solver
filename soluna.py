@@ -324,7 +324,7 @@ def update_board_is_determined(board: GameState) -> None:
             conn.commit()
 
 
-def solve_game() -> None:
+def update_eval() -> None:
     """
     Solve the game using memoization
 
@@ -613,6 +613,7 @@ def update_best_losing_move() -> None:
             cursor.execute(f'UPDATE soluna SET best_move = "{best_move}", move_explanation = "highest winning percentage if opponent plays randomly next turn and perfect play after that" WHERE state = "{soluna_game.board}"')
             conn.commit()
 
+
 def update_best_move_greedy() -> None:
     """
     Update the best_move and move_explanation column in the database.
@@ -646,14 +647,108 @@ def update_best_move_greedy() -> None:
             conn.commit()
 
 
+# def update_best_move_greedy() -> None:
+#     """
+#     Update the best_move and move_explanation column in the database.
+#     when forced to choose amongst multiple winning moves, choose the one with fewest possible moves
+#     (in hopes that this will lower the solution space)
+
+#     Where
+#     best_move = the board state of the best move
+#     move_explanation = "winning move with fewest possible moves"
+#     """
+#     all_positions = get_all_positions()
+
+#     for position in all_positions:
+#         print(f"Updating best_move by greedy, position {all_positions.index(position)+1}/{len(all_positions)}")
+#         # only update if move_explanation is not already set
+#         cursor.execute(f'SELECT move_explanation FROM soluna WHERE state = "{position}"')
+#         move_explanation = cursor.fetchone()[0]
+#         if move_explanation:
+#             continue
+
+#         soluna_game = Soluna(position)
+#         possible_moves = soluna_game.get_moves()
+#         wanted_score = get_wanted_score(soluna_game.board)
+#         winning_moves = [move for move in possible_moves if evaluate_board(move) == wanted_score]
+#         if len(winning_moves) > 1:
+#             formatted_moves = ', '.join([f'"{move}"' for move in possible_moves])
+#             cursor.execute(f'SELECT state, possible_move_count FROM soluna WHERE state IN ({formatted_moves})')
+#             results = cursor.fetchall()
+#             best_move = min(results, key=lambda x: x[1])[0]
+#             cursor.execute(f'UPDATE soluna SET best_move = "{best_move}", move_explanation = "winning move with fewest possible moves" WHERE state = "{soluna_game.board}"')
+#             conn.commit()
+
+
+def update_total_parents() -> None:
+    """
+    Update the total_parents column in the database.
+
+    Where
+    total_parents = the total number of positions that can reach the current position
+    """
+    all_positions = get_all_positions()
+
+    # exit if total_parents is already updated
+    cursor.execute(f'SELECT total_parents FROM soluna WHERE total_parents > 0')
+    if cursor.fetchone():
+        return
+
+    for position in all_positions:
+        print(f"Updating total_parents, position {all_positions.index(position)+1}/{len(all_positions)}")
+        soluna_game = Soluna(position)
+        possible_moves = soluna_game.get_moves()
+
+        # add one to total parents to each possible move
+        for move in possible_moves:
+            cursor.execute(f'SELECT total_parents FROM soluna WHERE state = "{move}"')
+            total_parents = cursor.fetchone()[0]
+            cursor.execute(f'UPDATE soluna SET total_parents = {total_parents+1} WHERE state = "{move}"')
+            conn.commit()
+
+
+def update_best_move_greedy() -> None:
+    """
+    Update the best_move and move_explanation column in the database.
+    when forced to choose amongst multiple winning moves, choose the one with the most parent states
+    (in hopes that this will lower the solution space)
+
+    Where
+    best_move = the board state of the best move
+    move_explanation = "winning move with the most parent states"
+    """
+    all_positions = get_all_positions()
+
+    for position in all_positions:
+        print(f"Updating best_move by greedy, position {all_positions.index(position)+1}/{len(all_positions)}")
+        # only update if move_explanation is not already set
+        cursor.execute(f'SELECT move_explanation FROM soluna WHERE state = "{position}"')
+        move_explanation = cursor.fetchone()[0]
+        if move_explanation:
+            continue
+
+        soluna_game = Soluna(position)
+        possible_moves = soluna_game.get_moves()
+        wanted_score = get_wanted_score(soluna_game.board)
+        winning_moves = [move for move in possible_moves if evaluate_board(move) == wanted_score]
+        if len(winning_moves) > 1:
+            formatted_moves = ', '.join([f'"{move}"' for move in possible_moves])
+            cursor.execute(f'SELECT state, total_parents FROM soluna WHERE state IN ({formatted_moves})')
+            results = cursor.fetchall()
+            best_move = max(results, key=lambda x: x[1])[0]
+            cursor.execute(f'UPDATE soluna SET best_move = "{best_move}", move_explanation = "winning move with the most parent states" WHERE state = "{soluna_game.board}"')
+
+
 def populate_table() -> None:
     """
     Populate the table with all possible game states
     """
-    solve_game()
+    update_eval()
     update_is_determined()
     update_move_num()
     update_possible_move_count()
+    update_total_parents()
+
     update_best_move()
     update_reachable()
 
@@ -666,7 +761,6 @@ def update_best_move() -> None:
     update_best_losing_move()
     shadow_best_move_loop("probabilistic shadow")
     update_best_move_greedy()
-    update_reachable()
 
 
 
@@ -684,8 +778,7 @@ def main() -> None:
 
     # populate_table()
 
-    # update_best_move()
-
+    update_best_move()
 
 
     if 'conn' in locals() and conn.is_connected():
