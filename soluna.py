@@ -869,7 +869,7 @@ def update_best_move_choice() -> None:
     best_move = the board state of the best move
     move_explanation = "choice amongst multiple winning moves"
     """
-    EXPLANATION = "winning move with the most parent states"
+    EXPLANATION = "choice amongst multiple winning moves"
     all_positions = get_all_positions()
 
     for index, position in enumerate(all_positions):
@@ -903,23 +903,19 @@ def update_best_move_choice() -> None:
                             ''')
             results = cursor.fetchall()
 
+            explanation = EXPLANATION
             for result in results:
                 if result[2] in good_ids:
+                    print(result[2])
                     best_move = result[0]
-                    cursor.execute(f'''
-                                    UPDATE soluna
-                                    SET best_move = "{best_move}",
-                                        move_explanation = "good id"
-                                    WHERE state = "{soluna_game.board}"
-                                    ''')
-                    conn.commit()
+                    explanation = "good id"
                     break
-
-            best_move = max(results, key=lambda x: x[1])[0]
+            if explanation == EXPLANATION:
+                best_move = max(results, key=lambda x: x[1])[0]
             cursor.execute(f'''
                             UPDATE soluna
                             SET best_move = "{best_move}",
-                                move_explanation = "{EXPLANATION}"
+                                move_explanation = "{explanation}"
                             WHERE state = "{soluna_game.board}"
                             ''')
             conn.commit()
@@ -955,6 +951,7 @@ def main() -> None:
     connect_to_database()
     # populate_table()
     update_best_move()
+    update_reachable()
     disconnect_from_database()
 
 if __name__ == '__main__':

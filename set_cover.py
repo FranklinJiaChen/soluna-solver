@@ -213,15 +213,14 @@ def main():
     simplify_and_solve(info)
 
     # 84 or 156
+    # 80, 69 and 132 choose 2
+    # 131 or 110
     add_to_solution(info, 156)
-    simplify_and_solve(info)
+    add_to_solution(info, 69)
     add_to_solution(info, 80)
-    simplify_and_solve(info)
     add_to_solution(info, 110)
     simplify_and_solve(info)
-    # 69 or 132
-    add_to_solution(info, 69)
-    simplify_and_solve(info)
+
 
 
 if __name__ == '__main__':
