@@ -892,7 +892,7 @@ def update_best_move_choice() -> None:
                         if evaluate_board(move) == wanted_score]
 
         if len(winning_moves) > 1:
-            good_ids = [64, 70, 112, 114, 158, 156, 80, 161, 110, 103, 69]
+            good_ids = [64, 70, 112, 114, 158, 156, 69, 132, 110, 103, 161]
             formatted_moves = ', '.join([f'"{move}"'
                                          for move in possible_moves])
 

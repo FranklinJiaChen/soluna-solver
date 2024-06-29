@@ -217,7 +217,7 @@ def main():
     # 131 or 110
     add_to_solution(info, 156)
     add_to_solution(info, 69)
-    add_to_solution(info, 80)
+    add_to_solution(info, 132)
     add_to_solution(info, 110)
     simplify_and_solve(info)
 
