@@ -45,13 +45,11 @@ STARTING_CONFIGURATIONS: List[GameState] = [
 ]
 
 
-config = {
+SQL_CONFIG = {
     'user': 'root',
     'host': 'localhost',
     'database': 'soluna',
 }
-conn = None
-cursor = None
 
 def get_total_stacks(board: GameState) -> int:
     """
@@ -283,6 +281,28 @@ class Soluna:
         if not self.get_moves():
             return '""'
         return ', '.join([f'"{move}"' for move in self.get_moves()])
+
+
+def connect_to_database() -> None:
+    """
+    Connects to the MySQL database.
+    """
+    global conn, cursor
+    try:
+        conn = mysql.connector.connect(**SQL_CONFIG)
+        cursor = conn.cursor()
+    except mysql.connector.Error as e:
+        print(f"Error connecting to MySQL: {e}")
+        return
+
+def disconnect_from_database() -> None:
+    """
+    Disconnects from the MySQL database.
+    """
+    if 'conn' in locals() and conn.is_connected():
+        cursor.close()
+        conn.close()
+        print('MySQL connection closed')
 
 
 def get_all_positions() -> List[GameState]:
@@ -794,7 +814,7 @@ def update_best_losing_move() -> None:
             cursor.execute(f'''
                             UPDATE soluna
                             SET best_move = "{best_move}",
-                                move_explanation = {EXPLANATION}
+                                move_explanation = "{EXPLANATION}"
                             WHERE state = "{soluna_game.board}"
                             ''')
             conn.commit()
@@ -838,7 +858,7 @@ def update_total_parents() -> None:
             conn.commit()
 
 
-def update_best_move_greedy() -> None:
+def update_best_move_choice() -> None:
     """
     Update the best_move and move_explanation column in the database.
     when forced to choose amongst multiple winning moves,
@@ -847,13 +867,13 @@ def update_best_move_greedy() -> None:
 
     Where
     best_move = the board state of the best move
-    move_explanation = "winning move with the most parent states"
+    move_explanation = "choice amongst multiple winning moves"
     """
     EXPLANATION = "winning move with the most parent states"
     all_positions = get_all_positions()
 
     for index, position in enumerate(all_positions):
-        print("Updating best_move by greedy, position "
+        print("Updating best_move by choice, position "
               f"{index+1}/{len(all_positions)}")
         # only update if move_explanation is not already set
         cursor.execute(f'''
@@ -870,20 +890,36 @@ def update_best_move_greedy() -> None:
         wanted_score = get_wanted_score(soluna_game.board)
         winning_moves = [move for move in possible_moves
                         if evaluate_board(move) == wanted_score]
+
         if len(winning_moves) > 1:
+            good_ids = [64, 70, 112, 114, 158, 156, 80, 161, 110, 103, 69]
             formatted_moves = ', '.join([f'"{move}"'
                                          for move in possible_moves])
+
             cursor.execute(f'''
-                            SELECT state, total_parents
+                            SELECT state, total_parents, id
                             FROM soluna
                             WHERE state IN ({formatted_moves})
                             ''')
             results = cursor.fetchall()
+
+            for result in results:
+                if result[2] in good_ids:
+                    best_move = result[0]
+                    cursor.execute(f'''
+                                    UPDATE soluna
+                                    SET best_move = "{best_move}",
+                                        move_explanation = "good id"
+                                    WHERE state = "{soluna_game.board}"
+                                    ''')
+                    conn.commit()
+                    break
+
             best_move = max(results, key=lambda x: x[1])[0]
             cursor.execute(f'''
                             UPDATE soluna
                             SET best_move = "{best_move}",
-                                move_explanation = {EXPLANATION}
+                                move_explanation = "{EXPLANATION}"
                             WHERE state = "{soluna_game.board}"
                             ''')
             conn.commit()
@@ -909,27 +945,17 @@ def update_best_move() -> None:
     shadow_best_move_loop("confirmed shadow")
     update_best_losing_move()
     shadow_best_move_loop("probabilistic shadow")
-    update_best_move_greedy()
+    update_best_move_choice()
 
 
 def main() -> None:
     """
     Main function
     """
-    global conn, cursor
-    try:
-        conn = mysql.connector.connect(**config)
-        cursor = conn.cursor()
-    except mysql.connector.Error as e:
-        print(f"Error connecting to MySQL: {e}")
-        return
-
-    populate_table()
-
-    if 'conn' in locals() and conn.is_connected():
-        cursor.close()
-        conn.close()
-        print('MySQL connection closed')
+    connect_to_database()
+    # populate_table()
+    update_best_move()
+    disconnect_from_database()
 
 if __name__ == '__main__':
     main()
