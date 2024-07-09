@@ -1,4 +1,5 @@
--- Purpose: Resets all the fields in the soluna table to their default values.
+-- Purpose: resets all the fields in the soluna table to their default values.
+--          while keeping the ids and the board state.
 UPDATE soluna
 SET
     move_num = NULL,

@@ -1,3 +1,5 @@
+-- Purpose: Select the states that a player with an optimal strategy
+-- could reach
 SELECT best_move, COUNT(*) AS move_count
 FROM soluna
 WHERE (move_num % 2 = 1 AND (p1_optimal_p1_wins OR p1_optimal_p2_wins))

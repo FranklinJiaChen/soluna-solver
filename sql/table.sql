@@ -1,3 +1,6 @@
+-- Purpose: Create the table for the Soluna database
+-- There are a lot of fields in the table
+-- in a hope to find insights into the game
 CREATE TABLE `soluna` (
 	`id` INT(11) UNSIGNED NOT NULL,
 	`move_num` INT(11) NULL DEFAULT NULL COMMENT 'the move number of the state. Starting configurations are move 1',
